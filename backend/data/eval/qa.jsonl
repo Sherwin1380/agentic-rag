@@ -1,0 +1,15 @@
+{"question": "What is the model ID for Claude Opus 4.8?", "relevant_sources": ["models-overview.md"], "expected_keywords": ["claude-opus-4-8"]}
+{"question": "How much does Claude Sonnet 4.6 cost per million input tokens?", "relevant_sources": ["models-overview.md", "pricing-and-cost.md"], "expected_keywords": ["3"]}
+{"question": "What context window does Claude Haiku 4.5 have?", "relevant_sources": ["models-overview.md"], "expected_keywords": ["200"]}
+{"question": "How do I enable adaptive thinking and what values can the effort parameter take?", "relevant_sources": ["thinking-and-effort.md"], "expected_keywords": ["adaptive", "effort"]}
+{"question": "Does budget_tokens still work on Opus 4.8?", "relevant_sources": ["thinking-and-effort.md"], "expected_keywords": ["400"]}
+{"question": "What are the cache write multipliers for the 5-minute and 1-hour TTLs?", "relevant_sources": ["prompt-caching.md"], "expected_keywords": ["1.25", "2"]}
+{"question": "How do I verify that prompt caching produced a cache hit?", "relevant_sources": ["prompt-caching.md"], "expected_keywords": ["cache_read_input_tokens"]}
+{"question": "What stop_reason does the API return when Claude wants to call a tool?", "relevant_sources": ["tool-use.md", "messages-api.md"], "expected_keywords": ["tool_use"]}
+{"question": "What are the tool_choice options?", "relevant_sources": ["tool-use.md"], "expected_keywords": ["auto", "any"]}
+{"question": "How much cheaper is the Message Batches API?", "relevant_sources": ["pricing-and-cost.md"], "expected_keywords": ["50"]}
+{"question": "Which streaming event carries the stop_reason?", "relevant_sources": ["streaming.md"], "expected_keywords": ["message_delta"]}
+{"question": "Is the Messages API stateful or stateless, and what must the first message role be?", "relevant_sources": ["messages-api.md"], "expected_keywords": ["stateless", "user"]}
+{"question": "Estimate the input cost of 1.5 million tokens on Opus 4.8.", "relevant_sources": ["pricing-and-cost.md", "models-overview.md"], "expected_keywords": ["7.5"]}
+{"question": "What endpoint do all Claude API requests go through?", "relevant_sources": ["messages-api.md"], "expected_keywords": ["/v1/messages"]}
+{"question": "What is the maximum output token limit for Opus 4.8 and how must large outputs be requested?", "relevant_sources": ["models-overview.md", "streaming.md"], "expected_keywords": ["128", "stream"]}

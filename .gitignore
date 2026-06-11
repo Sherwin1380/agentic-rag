@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+backend/storage/
+backend/.hf_cache/
+.pytest_cache/
+
+# Env / secrets
+.env
+backend/.env
+frontend/.env.local
+
+# Node / Next.js
+node_modules/
+frontend/.next/
+frontend/out/
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db

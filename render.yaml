@@ -1,0 +1,24 @@
+# Render Blueprint — one-click deploy of the FastAPI backend.
+# In the Render dashboard: New > Blueprint, point it at this repo, then set
+# GROQ_API_KEY (and optionally the Langfuse keys) as environment variables.
+services:
+  - type: web
+    name: agentic-rag-api
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: GROQ_API_KEY
+        sync: false          # set this secret in the dashboard
+      - key: GROQ_MODEL
+        value: llama-3.3-70b-versatile
+      - key: CORS_ORIGINS
+        value: "*"
+      - key: ENABLE_WEB_SEARCH
+        value: "true"
+      - key: LANGFUSE_PUBLIC_KEY
+        sync: false
+      - key: LANGFUSE_SECRET_KEY
+        sync: false
