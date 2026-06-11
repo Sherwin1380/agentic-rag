@@ -1,5 +1,6 @@
 # Backend container for the Agentic RAG API.
-# Builds the vector index at image-build time so the service is ready on boot.
+# The vector index is not built during image build; build/promote it separately
+# so deploys do not re-embed the banking corpus every time.
 FROM python:3.12-slim
 
 ENV PYTHONUNBUFFERED=1 \
@@ -20,9 +21,9 @@ RUN pip install --index-url https://download.pytorch.org/whl/cpu torch==2.5.1 \
 
 COPY . .
 
-# Pre-download the embedding model and build the index at build time.
-RUN python -c "from app.embeddings import _get_model; _get_model()" \
-    && python scripts/ingest_banking.py
+# Pre-download the embedding model only. Do not run ingest here, because that
+# re-embeds the full banking corpus on every Render deploy.
+RUN python -c "from app.embeddings import _get_model; _get_model()"
 
 EXPOSE 8000
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

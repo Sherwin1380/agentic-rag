@@ -1,6 +1,8 @@
 # Render Blueprint — one-click deploy of the FastAPI backend.
 # In the Render dashboard: New > Blueprint, point it at this repo, then set
 # GROQ_API_KEY (and optionally the Langfuse keys) as environment variables.
+# The Docker build does not run ingestion; promote/copy a prebuilt Chroma index
+# separately or run ingestion manually in an environment where the cost is OK.
 services:
   - type: web
     name: agentic-rag-api
