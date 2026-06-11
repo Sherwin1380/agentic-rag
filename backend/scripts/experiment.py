@@ -93,10 +93,18 @@ def collection_name(model_name: str, size: int, overlap: int, full_corpus: bool)
 # Embedders
 # --------------------------------------------------------------------------- #
 class STEmbedder:
-    def __init__(self, model_id, query_prefix="", passage_prefix=""):
+    def __init__(self, model_id, query_prefix="", passage_prefix="", device="auto"):
         from sentence_transformers import SentenceTransformer
 
-        self.model = SentenceTransformer(model_id, device="cpu")
+        if device == "auto":
+            try:
+                import torch
+
+                device = "cuda" if torch.cuda.is_available() else "cpu"
+            except Exception:
+                device = "cpu"
+        self.device = device
+        self.model = SentenceTransformer(model_id, device=device)
         self.query_prefix = query_prefix
         self.passage_prefix = passage_prefix
         self.dim = self.model.get_sentence_embedding_dimension()
@@ -150,10 +158,10 @@ class OpenAIEmbedder:
         return self._embed(texts)
 
 
-def make_embedder(spec):
+def make_embedder(spec, device="auto"):
     if spec["kind"] == "st":
         return STEmbedder(spec["model_id"], spec.get("query_prefix", ""),
-                          spec.get("passage_prefix", ""))
+                          spec.get("passage_prefix", ""), device=device)
     return OpenAIEmbedder(spec["model_id"])
 
 
@@ -368,6 +376,12 @@ def main():
         action="store_true",
         help="after a successful run, delete all persisted experiment collections except the best one",
     )
+    ap.add_argument(
+        "--device",
+        default="auto",
+        choices=["auto", "cpu", "cuda"],
+        help="device for local sentence-transformer models",
+    )
     args = ap.parse_args()
 
     settings = get_settings()
@@ -412,7 +426,7 @@ def main():
     for m in runnable:
         print(f"\n=== model: {m['name']} ===")
         try:
-            embedder = make_embedder(m)
+            embedder = make_embedder(m, device=args.device)
         except Exception as exc:  # noqa: BLE001
             print(f"  failed to load: {exc}")
             continue
@@ -468,6 +482,7 @@ def main():
             "metric": "hybrid_mrr",
             "experiment_chroma_path": str(EXPERIMENT_CHROMA_PATH),
             "full_corpus": args.full_corpus,
+            "production_ready": args.full_corpus and not args.no_persist_vectors,
             **best,
         }
         OUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -483,6 +498,8 @@ def main():
             write_results(state)
         print(f"\nBest hybrid MRR: {best['hybrid_mrr']:.3f} "
               f"({best['model']}, size={best['chunk_size']}, ov={best['chunk_overlap']})")
+        if not winner["production_ready"]:
+            print("Winner is for benchmarking only; rerun with --full-corpus to save a production-complete index.")
         print(f"Wrote winner metadata -> {WINNER}")
     print(f"Wrote {RESULTS}")
 
