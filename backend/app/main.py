@@ -102,7 +102,10 @@ def experiments():
 
     from .config import DATA_DIR
 
-    path = DATA_DIR / "experiments" / "results.json"
+    exp_dir = DATA_DIR / "experiments"
+    path = exp_dir / "results.json"
+    if not path.exists():
+        path = exp_dir / "reeval_chroma_results.json"
     if not path.exists():
         return {"status": "empty", "results": [], "completed": 0, "total_configs": 0}
     try:

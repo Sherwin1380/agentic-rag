@@ -35,6 +35,8 @@ class Settings(BaseSettings):
 
     # --- Embeddings ---
     embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"
+    embedding_query_prefix: str = ""
+    embedding_passage_prefix: str = ""
 
     # --- Vector store / retrieval ---
     chroma_path: str = str(STORAGE_DIR / "chroma")

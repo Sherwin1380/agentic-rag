@@ -1,191 +1,175 @@
-# Agentic RAG over the Claude API docs
+# Agentic RAG for U.S. Banking Regulations
 
-A retrieval-augmented assistant with a real **agent layer** on top — not naive
-"embed and retrieve." An agent decides, per question, whether to run hybrid search
-over a documentation corpus, call a calculator, search the web, or just answer
-directly. Every answer carries **inline citations**, and the system ships with a
-hand-labeled **eval harness** and optional **Langfuse** observability.
+A retrieval-augmented assistant for U.S. banking regulations, focused on Title
+12 of the Code of Federal Regulations. The app combines a tool-calling agent,
+hybrid retrieval, source citations, and an embedding/chunking benchmark UI.
 
-The bundled corpus is the **Anthropic Claude API documentation** (models, pricing,
-tool use, streaming, prompt caching, thinking/effort). Swap in your own `.md` files
-to point it at a different domain.
+Hosted:
 
+- Frontend: <https://agentic-qp02t0qgo-sherwin13-projects.vercel.app/>
+- Backend: <https://agentic-rag-api-43w8.onrender.com>
+
+## What It Demonstrates
+
+- Agentic RAG: the assistant decides when to retrieve, calculate, search the web,
+  or answer directly.
+- Domain corpus: 5,002 eCFR Title 12 sections across OCC, Federal Reserve, FDIC,
+  NCUA, and CFPB regulations.
+- Hybrid retrieval: dense Chroma search plus BM25, fused with Reciprocal Rank
+  Fusion.
+- Citations: answers include inline citations tied to retrieved regulation
+  chunks.
+- Benchmarking: compares embedding models and chunking strategies with MRR,
+  Hit@k, Recall@k, Precision@k, and NDCG@k.
+- Production index: uses the best open-source result, `intfloat/e5-small-v2`
+  with chunk size `1500` and overlap `255`.
+
+## Stack
+
+| Layer | Choice |
+| --- | --- |
+| LLM | Groq, `llama-3.3-70b-versatile` |
+| Embeddings | `intfloat/e5-small-v2` |
+| Vector DB | Chroma, persisted under `backend/storage/experiment_chroma` |
+| Sparse retrieval | `rank-bm25` |
+| Backend | FastAPI + Uvicorn |
+| Frontend | Next.js |
+| Optional tracing | Langfuse |
+
+The runtime app needs `GROQ_API_KEY`. No OpenAI key is needed for the selected
+production index.
+
+## Production Retrieval Config
+
+The shipped Chroma collection is:
+
+```text
+banking_exp_full_e5_small_v2_1500_255
 ```
-┌──────────────┐    /chat     ┌─────────────────────────────────────────────┐
-│  Next.js UI  │ ───────────▶ │  FastAPI backend                            │
-│  (Vercel)    │ ◀─────────── │                                             │
-└──────────────┘  answer +    │   Agent loop (Groq · Llama 3.3 70B)         │
-                  sources +   │     ├─ search_documentation ─┐              │
-                  steps       │     ├─ calculator            │ hybrid       │
-                              │     └─ web_search            │ retrieval    │
-                              │                              ▼              │
-                              │   Dense (Chroma + MiniLM) + BM25  →  RRF     │
-                              │                              │              │
-                              │   Langfuse traces (optional) ┘              │
-                              └─────────────────────────────────────────────┘
+
+Use these backend environment variables:
+
+```text
+CHROMA_PATH=/app/storage/experiment_chroma
+COLLECTION_NAME=banking_exp_full_e5_small_v2_1500_255
+EMBEDDING_MODEL=intfloat/e5-small-v2
+EMBEDDING_QUERY_PREFIX=query:
+EMBEDDING_PASSAGE_PREFIX=passage:
 ```
 
-## What it demonstrates
+The e5 prefixes matter: documents were embedded with `passage: ` and user
+queries must be embedded with `query: `.
 
-- **Chunking strategy** — paragraph-aware chunks (~900 chars) with sliding overlap.
-- **Hybrid search** — dense vectors (Chroma + `all-MiniLM-L6-v2`) fused with sparse
-  BM25 via **Reciprocal Rank Fusion**. See [`retriever.py`](backend/app/retriever.py).
-- **Agentic layer** — a Groq tool-calling loop that chooses retrieve / calculate /
-  web-search / answer. See [`agent.py`](backend/app/agent.py).
-- **Source citations** — chunks get stable `[n]` numbers tracked across retrievals.
-- **Eval harness** — retrieval Hit@k / Recall@k / Precision@k / MRR plus optional
-  end-to-end answer grading. See [`scripts/evaluate.py`](backend/scripts/evaluate.py).
-- **Observability** — every retrieval and LLM step logged to Langfuse when keys are set.
+## Run Locally
 
-## Free stack
+### Backend
 
-| Layer | Choice | Cost |
-| --- | --- | --- |
-| LLM | Groq — Llama 3.3 70B (`llama-3.3-70b-versatile`) | Free tier |
-| Embeddings | `sentence-transformers/all-MiniLM-L6-v2`, local CPU | Free |
-| Vector DB | Chroma (local, persisted on disk) | Free |
-| Sparse | `rank-bm25` | Free |
-| Web search | DuckDuckGo (`duckduckgo-search`) | Free, no key |
-| Backend | FastAPI + Uvicorn (Render free tier) | Free |
-| Frontend | Next.js (Vercel free tier) | Free |
-| Observability | Langfuse cloud (optional) | Free tier |
-
-The **only** key needed to run the agent is a free `GROQ_API_KEY`.
-
----
-
-## Run it locally (Windows / macOS / Linux)
-
-### 1. Backend
-
-```bash
+```powershell
 cd backend
-python -m venv ..venv\Scripts\activate
-# Windows:  .venv\Scripts\activate
-# macOS/Linux:  source .venv/bin/activate
+.\.venv\Scripts\activate
 
-# CPU-only torch keeps the install small:
-pip install --index-url https://download.pytorch.org/whl/cpu torch==2.5.1
-pip install -r requirements.txt
+$env:GROQ_API_KEY="your-groq-key"
+$env:CHROMA_PATH="C:\projects\agentic-rag\backend\storage\experiment_chroma"
+$env:COLLECTION_NAME="banking_exp_full_e5_small_v2_1500_255"
+$env:EMBEDDING_MODEL="intfloat/e5-small-v2"
+$env:EMBEDDING_QUERY_PREFIX="query: "
+$env:EMBEDDING_PASSAGE_PREFIX="passage: "
 
-copy .env.example .env        # (Windows)  /  cp .env.example .env
-# paste your free key from https://console.groq.com into GROQ_API_KEY
-
-python scripts/ingest.py      # build the vector + BM25 index (downloads MiniLM once)
-uvicorn app.main:app --reload # serves on http://localhost:8000
+uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-Check it: open <http://localhost:8000/health> and <http://localhost:8000/docs>.
+Check:
 
-### 2. Frontend
+- <http://127.0.0.1:8000/health>
+- <http://127.0.0.1:8000/search?q=Regulation%20CC%20funds%20availability>
 
-```bash
+### Frontend
+
+```powershell
 cd frontend
 npm install
-copy .env.local.example .env.local   # default points at http://localhost:8000
-npm run dev                           # http://localhost:3000
+$env:NEXT_PUBLIC_API_URL="http://127.0.0.1:8000"
+npm run dev
 ```
 
-Open <http://localhost:3000> and ask a question.
+Open <http://127.0.0.1:3000>.
 
-### 3. Evaluate
+## Data And Scripts
 
-```bash
+Important files:
+
+```text
+backend/data/banking/sections.jsonl      fetched Title 12 CFR sections
+backend/data/banking/qa.jsonl            generated evaluation questions
+backend/data/experiments/reeval_chroma_results.json
+backend/storage/experiment_chroma/       selected production Chroma index
+```
+
+Useful scripts:
+
+```powershell
 cd backend
-python scripts/evaluate.py            # retrieval metrics (no LLM key needed)
-python scripts/evaluate.py --answers  # also grade generated answers (needs GROQ_API_KEY)
-```
 
----
+# Fetch Title 12 data from eCFR
+python scripts/fetch_ecfr.py
+
+# Build the default banking index from sections.jsonl
+python scripts/ingest_banking.py
+
+# Generate a labelled banking eval set with Groq
+python scripts/generate_eval.py --n 100
+
+# Evaluate retrieval and optionally full answers
+python scripts/evaluate.py
+python scripts/evaluate.py --answers
+
+# Benchmark embedding models and chunking strategies
+python scripts/experiment.py --full-corpus
+
+# Re-score persisted benchmark Chroma collections
+python scripts/evaluate_experiment_chroma.py
+```
 
 ## API
 
 | Method | Path | Description |
 | --- | --- | --- |
-| `GET` | `/health` | Index size, LLM/Langfuse status, model |
-| `POST` | `/chat` | `{ message, history[] }` → `{ answer, sources[], steps[], trace_id }` |
-| `GET` | `/search?q=...&k=5` | Raw hybrid-retrieval results (no LLM) — handy for debugging |
-| `GET` | `/docs` | Interactive OpenAPI docs |
+| `GET` | `/health` | Service status, indexed chunks, model config |
+| `POST` | `/chat` | Chat with answer, sources, tool steps, trace id |
+| `GET` | `/search?q=...&k=5` | Raw hybrid retrieval results |
+| `GET` | `/experiments` | Embedding/chunking benchmark results |
+| `GET` | `/docs` | FastAPI OpenAPI UI |
 
----
+## Deploy
 
-## Deploy (free tiers)
+### Backend: Render
 
-These steps need **your** accounts (signup is free). The configs are already written.
+1. Push the repo to GitHub.
+2. In Render, create a Blueprint from `render.yaml`.
+3. Set `GROQ_API_KEY`.
+4. Confirm these values are present:
 
-### Backend → Render
-
-1. Push this repo to GitHub.
-2. In Render: **New → Blueprint**, select the repo. It reads
-   [`render.yaml`](render.yaml) and builds [`backend/Dockerfile`](backend/Dockerfile)
-   (the index is built into the image, so it's ready on boot).
-3. Set `GROQ_API_KEY` (and optionally the Langfuse keys) in the dashboard.
-4. Note the service URL, e.g. `https://agentic-rag-api.onrender.com`.
-
-> The Render free tier sleeps after inactivity; the first request after idle takes a
-> few seconds to wake. The MiniLM model and Chroma index are baked into the image.
-
-### Frontend → Vercel
-
-1. In Vercel: **New Project → Import** this repo, set the root directory to `frontend`.
-2. Add an env var `NEXT_PUBLIC_API_URL` = your Render backend URL.
-3. Deploy. Set `CORS_ORIGINS` on the backend to your Vercel domain (or leave `*`).
-
-### Observability → Langfuse (optional)
-
-Sign up at <https://cloud.langfuse.com>, create a project, and set
-`LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY` on the backend. Each chat then produces
-a trace with nested spans for retrieval and every LLM decision.
-
----
-
-## Project layout
-
-```
-agentic-rag/
-├── backend/
-│   ├── app/
-│   │   ├── main.py          FastAPI app + routes
-│   │   ├── agent.py         agentic tool-calling loop
-│   │   ├── retriever.py     hybrid search (dense + BM25 + RRF)
-│   │   ├── vectorstore.py   Chroma wrapper
-│   │   ├── embeddings.py    local sentence-transformers
-│   │   ├── tools.py         calculator + web search
-│   │   ├── ingest.py        chunking + indexing
-│   │   ├── llm.py           Groq client
-│   │   ├── observability.py Langfuse (no-op without keys)
-│   │   ├── models.py        Pydantic schemas
-│   │   └── config.py        settings
-│   ├── data/
-│   │   ├── corpus/          the Claude API docs (.md with frontmatter)
-│   │   └── eval/qa.jsonl    hand-labeled QA set
-│   ├── scripts/
-│   │   ├── ingest.py        build the index
-│   │   └── evaluate.py      eval harness
-│   ├── Dockerfile
-│   └── requirements.txt
-├── frontend/                Next.js chat UI
-├── render.yaml              backend blueprint
-└── README.md
+```text
+CHROMA_PATH=/app/storage/experiment_chroma
+COLLECTION_NAME=banking_exp_full_e5_small_v2_1500_255
+EMBEDDING_MODEL=intfloat/e5-small-v2
+EMBEDDING_QUERY_PREFIX=query:
+EMBEDDING_PASSAGE_PREFIX=passage:
+CORS_ORIGINS=*
+ENABLE_WEB_SEARCH=true
 ```
 
-## Use your own corpus
+The Docker build does not re-ingest or re-embed the corpus. It uses the persisted
+Chroma index committed with the backend.
 
-Drop Markdown files into `backend/data/corpus/` with this frontmatter, then re-run
-`python scripts/ingest.py`:
+### Frontend: Vercel
 
-```markdown
----
-title: My document title
-url: https://example.com/source
----
+1. Import this repo in Vercel.
+2. Set the root directory to `frontend`.
+3. Set `NEXT_PUBLIC_API_URL` to the Render backend URL.
+4. Deploy.
 
-# Body content...
-```
+## Notes
 
-Update `backend/data/eval/qa.jsonl` with questions, `relevant_sources` (filenames),
-and `expected_keywords` to keep the eval harness meaningful.
-
-Hosted right now 
-FE - https://agentic-qp02t0qgo-sherwin13-projects.vercel.app/
-BE - https://agentic-rag-api-43w8.onrender.com
+This is a technical demo and not legal advice. Retrieved regulation text should
+be checked against the official eCFR source for compliance decisions.

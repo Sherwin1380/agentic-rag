@@ -1,7 +1,8 @@
-"""Local embedding model wrapper.
+"""Embedding model wrapper.
 
-Uses sentence-transformers on CPU. The model (~90 MB) is downloaded once on
-first use and cached by HuggingFace under ~/.cache. No API key required.
+Uses sentence-transformers on CPU. The model is downloaded once on first use and
+cached by HuggingFace. Some retrieval models, notably E5 and BGE, require query
+and passage prefixes; this module applies those consistently for ingest/query.
 """
 from __future__ import annotations
 
@@ -30,8 +31,26 @@ def _get_model():
     return _model
 
 
-def embed_texts(texts: List[str]) -> List[List[float]]:
-    """Embed a batch of documents."""
+def _prefix(kind: str) -> str:
+    settings = get_settings()
+    model_name = settings.embedding_model.lower()
+
+    if kind == "query" and settings.embedding_query_prefix:
+        return settings.embedding_query_prefix
+    if kind == "passage" and settings.embedding_passage_prefix:
+        return settings.embedding_passage_prefix
+
+    if "e5" in model_name:
+        return "query: " if kind == "query" else "passage: "
+    if "bge" in model_name and kind == "query":
+        return "Represent this sentence for searching relevant passages: "
+    return ""
+
+
+def _embed(texts: List[str], kind: str) -> List[List[float]]:
+    prefix = _prefix(kind)
+    if prefix:
+        texts = [prefix + text for text in texts]
     model = _get_model()
     vectors = model.encode(
         texts,
@@ -42,6 +61,11 @@ def embed_texts(texts: List[str]) -> List[List[float]]:
     return vectors.tolist()
 
 
+def embed_texts(texts: List[str]) -> List[List[float]]:
+    """Embed a batch of documents."""
+    return _embed(texts, kind="passage")
+
+
 def embed_query(text: str) -> List[float]:
     """Embed a single query string."""
-    return embed_texts([text])[0]
+    return _embed([text], kind="query")[0]
