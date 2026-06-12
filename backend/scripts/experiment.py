@@ -266,13 +266,20 @@ def rrf_fuse(dense_idx, sparse_idx):
 
 def metrics_for(ranked_sources, relevant, k):
     top = ranked_sources[:k]
-    hit = 1.0 if any(s in relevant for s in top) else 0.0
+    found = [s for s in top if s in relevant]
+    hit = 1.0 if found else 0.0
+    recall = (len(set(found)) / len(relevant)) if relevant else 0.0
+    precision = len(found) / len(top) if top else 0.0
     rr = 0.0
     for rank, s in enumerate(top, start=1):
         if s in relevant:
             rr = 1.0 / rank
             break
-    return hit, rr
+    dcg = sum(1.0 / np.log2(rank + 1) for rank, s in enumerate(top, start=1) if s in relevant)
+    ideal_hits = min(len(relevant), k)
+    idcg = sum(1.0 / np.log2(rank + 1) for rank in range(1, ideal_hits + 1))
+    ndcg = dcg / idcg if idcg else 0.0
+    return hit, rr, recall, precision, ndcg
 
 
 def evaluate_config(matrix, embedder, chunk_texts, chunk_sources, queries, qa, k=K):
@@ -299,12 +306,18 @@ def evaluate_config(matrix, embedder, chunk_texts, chunk_sources, queries, qa, k
         dense_sources = [chunk_sources[i] for i in dense_idx]
         hybrid_sources = [chunk_sources[i] for i in rrf_fuse(list(dense_idx), list(sparse_idx))]
 
-        dh, drr = metrics_for(dense_sources, relevant, k)
-        hh, hrr = metrics_for(hybrid_sources, relevant, k)
+        dh, drr, drecall, dprecision, dndcg = metrics_for(dense_sources, relevant, k)
+        hh, hrr, hrecall, hprecision, hndcg = metrics_for(hybrid_sources, relevant, k)
         agg["dense"]["hit"] += dh
         agg["dense"]["rr"] += drr
+        agg["dense"]["recall"] += drecall
+        agg["dense"]["precision"] += dprecision
+        agg["dense"]["ndcg"] += dndcg
         agg["hybrid"]["hit"] += hh
         agg["hybrid"]["rr"] += hrr
+        agg["hybrid"]["recall"] += hrecall
+        agg["hybrid"]["precision"] += hprecision
+        agg["hybrid"]["ndcg"] += hndcg
         cat_hybrid_rr[cat] += hrr
         cat_n[cat] += 1
 
@@ -315,8 +328,14 @@ def evaluate_config(matrix, embedder, chunk_texts, chunk_sources, queries, qa, k
         "num_chunks": int(matrix.shape[0]),
         "dense_mrr": round(agg["dense"]["rr"] / q, 4),
         "dense_hit": round(agg["dense"]["hit"] / q, 4),
+        "dense_recall": round(agg["dense"]["recall"] / q, 4),
+        "dense_precision": round(agg["dense"]["precision"] / q, 4),
+        "dense_ndcg": round(agg["dense"]["ndcg"] / q, 4),
         "hybrid_mrr": round(agg["hybrid"]["rr"] / q, 4),
         "hybrid_hit": round(agg["hybrid"]["hit"] / q, 4),
+        "hybrid_recall": round(agg["hybrid"]["recall"] / q, 4),
+        "hybrid_precision": round(agg["hybrid"]["precision"] / q, 4),
+        "hybrid_ndcg": round(agg["hybrid"]["ndcg"] / q, 4),
         "per_category_hybrid_mrr": per_cat,
     }
 

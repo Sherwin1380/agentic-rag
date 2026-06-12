@@ -198,8 +198,15 @@ export default function ExperimentsPage() {
                     {header("num_chunks", "#Chunks")}
                     {header("seconds", "Embed s")}
                     {header("dense_mrr", "Dense MRR")}
+                    {header("dense_hit", "Dense Hit")}
+                    {header("dense_recall", "Dense Recall")}
+                    {header("dense_precision", "Dense Precision")}
+                    {header("dense_ndcg", "Dense NDCG")}
                     {header("hybrid_mrr", "Hybrid MRR")}
                     {header("hybrid_hit", "Hybrid Hit")}
+                    {header("hybrid_recall", "Hybrid Recall")}
+                    {header("hybrid_precision", "Hybrid Precision")}
+                    {header("hybrid_ndcg", "Hybrid NDCG")}
                     <th>Collection</th>
                   </tr>
                 </thead>
@@ -219,10 +226,17 @@ export default function ExperimentsPage() {
                       <td>{r.num_chunks.toLocaleString()}</td>
                       <td>{r.seconds}</td>
                       <td>{r.dense_mrr.toFixed(3)}</td>
+                      <td>{r.dense_hit.toFixed(3)}</td>
+                      <td>{(r.dense_recall ?? 0).toFixed(3)}</td>
+                      <td>{(r.dense_precision ?? 0).toFixed(3)}</td>
+                      <td>{(r.dense_ndcg ?? 0).toFixed(3)}</td>
                       <td>
                         <strong>{r.hybrid_mrr.toFixed(3)}</strong>
                       </td>
                       <td>{r.hybrid_hit.toFixed(3)}</td>
+                      <td>{(r.hybrid_recall ?? 0).toFixed(3)}</td>
+                      <td>{(r.hybrid_precision ?? 0).toFixed(3)}</td>
+                      <td>{(r.hybrid_ndcg ?? 0).toFixed(3)}</td>
                       <td title={r.collection_name ?? ""}>
                         {r.collection_name ? (
                           <span className="collection-name">{r.collection_name}</span>

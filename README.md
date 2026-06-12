@@ -185,3 +185,7 @@ url: https://example.com/source
 
 Update `backend/data/eval/qa.jsonl` with questions, `relevant_sources` (filenames),
 and `expected_keywords` to keep the eval harness meaningful.
+
+Hosted right now 
+FE - https://agentic-qp02t0qgo-sherwin13-projects.vercel.app/
+BE - https://agentic-rag-api-43w8.onrender.com

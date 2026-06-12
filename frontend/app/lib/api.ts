@@ -74,8 +74,14 @@ export interface ExperimentRow {
   num_chunks: number;
   dense_mrr: number;
   dense_hit: number;
+  dense_recall?: number;
+  dense_precision?: number;
+  dense_ndcg?: number;
   hybrid_mrr: number;
   hybrid_hit: number;
+  hybrid_recall?: number;
+  hybrid_precision?: number;
+  hybrid_ndcg?: number;
   per_category_hybrid_mrr: Record<string, number>;
 }
 
