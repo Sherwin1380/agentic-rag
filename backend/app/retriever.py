@@ -89,7 +89,7 @@ def hybrid_search(
     top_k = top_k or settings.top_k
 
     dense = _dense_search(query, settings.dense_k)
-    sparse = _sparse_search(query, settings.sparse_k)
+    sparse = _sparse_search(query, settings.sparse_k) if settings.enable_sparse_bm25 else []
 
     fused: Dict[str, Dict[str, Any]] = {}
 

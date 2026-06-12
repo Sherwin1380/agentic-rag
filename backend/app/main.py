@@ -18,12 +18,13 @@ from .models import (
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Warm the BM25 index on startup so the first query isn't slow. Safe even
-    # when the collection is empty (it just builds an empty index).
-    try:
-        retriever.ensure_bm25()
-    except Exception:
-        pass
+    # BM25 warming loads all chunk text into memory. Keep startup lightweight on
+    # small hosts like Render free tier so the port can bind before retrieval.
+    if get_settings().warm_bm25_on_startup:
+        try:
+            retriever.ensure_bm25()
+        except Exception:
+            pass
     yield
 
 

@@ -26,6 +26,10 @@ services:
         value: "query: "
       - key: EMBEDDING_PASSAGE_PREFIX
         value: "passage: "
+      - key: WARM_BM25_ON_STARTUP
+        value: "false"
+      - key: ENABLE_SPARSE_BM25
+        value: "false"
       - key: CORS_ORIGINS
         value: "*"
       - key: ENABLE_WEB_SEARCH

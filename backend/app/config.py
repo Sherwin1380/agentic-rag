@@ -47,6 +47,8 @@ class Settings(BaseSettings):
     dense_k: int = 12           # candidates from vector search before fusion
     sparse_k: int = 12          # candidates from BM25 before fusion
     rrf_k: int = 60             # reciprocal-rank-fusion constant
+    warm_bm25_on_startup: bool = False
+    enable_sparse_bm25: bool = True
 
     # --- Tools ---
     enable_web_search: bool = True
