@@ -1,0 +1,2 @@
+backend/storage/experiment_chroma/chroma.sqlite3 filter=lfs diff=lfs merge=lfs -text
+backend/storage/experiment_chroma/4147f6d9-4a6c-4229-8ac2-db50a78e70c2/** filter=lfs diff=lfs merge=lfs -text
