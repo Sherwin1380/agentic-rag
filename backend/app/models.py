@@ -45,3 +45,8 @@ class HealthResponse(BaseModel):
     llm_configured: bool
     langfuse_enabled: bool
     model: str
+    chroma_path: Optional[str] = None
+    collection_name: Optional[str] = None
+    chroma_sqlite_exists: Optional[bool] = None
+    chroma_sqlite_size_mb: Optional[float] = None
+    collection_error: Optional[str] = None

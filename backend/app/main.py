@@ -47,16 +47,40 @@ app.add_middleware(
 
 @app.get("/health", response_model=HealthResponse)
 def health() -> HealthResponse:
+    sqlite_path = None
+    sqlite_exists = False
+    sqlite_size_mb = 0.0
+    collection_error = None
+    settings = get_settings()
+    try:
+        from pathlib import Path
+
+        sqlite_path = Path(settings.chroma_path) / "chroma.sqlite3"
+        sqlite_exists = sqlite_path.exists()
+        sqlite_size_mb = (
+            round(sqlite_path.stat().st_size / 1024 / 1024, 2)
+            if sqlite_exists
+            else 0.0
+        )
+    except Exception as exc:  # noqa: BLE001
+        collection_error = f"chroma file check failed: {exc}"
+
     try:
         n = vectorstore.count()
-    except Exception:
+    except Exception as exc:  # noqa: BLE001
         n = 0
+        collection_error = str(exc)
     return HealthResponse(
         status="ok",
         documents_indexed=n,
         llm_configured=bool(settings.groq_api_key),
         langfuse_enabled=settings.langfuse_enabled,
         model=settings.groq_model,
+        chroma_path=settings.chroma_path,
+        collection_name=settings.collection_name,
+        chroma_sqlite_exists=sqlite_exists,
+        chroma_sqlite_size_mb=sqlite_size_mb,
+        collection_error=collection_error,
     )
 
 

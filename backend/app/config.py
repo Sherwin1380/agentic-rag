@@ -34,15 +34,15 @@ class Settings(BaseSettings):
     max_agent_steps: int = 5  # safety cap on the tool-use loop
 
     # --- Embeddings ---
-    embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"
-    embedding_query_prefix: str = ""
-    embedding_passage_prefix: str = ""
+    embedding_model: str = "intfloat/e5-small-v2"
+    embedding_query_prefix: str = "query: "
+    embedding_passage_prefix: str = "passage: "
 
     # --- Vector store / retrieval ---
-    chroma_path: str = str(STORAGE_DIR / "chroma")
-    collection_name: str = "banking_regs"
-    chunk_size: int = 900       # characters per chunk (~220 tokens)
-    chunk_overlap: int = 150
+    chroma_path: str = str(STORAGE_DIR / "experiment_chroma")
+    collection_name: str = "banking_exp_full_e5_small_v2_1500_255"
+    chunk_size: int = 1500
+    chunk_overlap: int = 255
     top_k: int = 5              # final chunks passed to the LLM
     dense_k: int = 12           # candidates from vector search before fusion
     sparse_k: int = 12          # candidates from BM25 before fusion

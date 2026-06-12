@@ -32,10 +32,7 @@ def get_collection():
     global _collection
     if _collection is None:
         settings = get_settings()
-        _collection = _get_client().get_or_create_collection(
-            name=settings.collection_name,
-            metadata={"hnsw:space": "cosine"},
-        )
+        _collection = _get_client().get_collection(name=settings.collection_name)
     return _collection
 
 
