@@ -6,7 +6,7 @@ hybrid retrieval, source citations, and an embedding/chunking benchmark UI.
 
 Hosted:
 
-- Frontend: <https://agentic-qp02t0qgo-sherwin13-projects.vercel.app/>
+- Frontend: <https://agentic-rag-pied.vercel.app/>
 - Backend: <https://agentic-rag-api-43w8.onrender.com>
 
 ## What It Demonstrates

@@ -31,7 +31,7 @@ services:
       - key: ENABLE_SPARSE_BM25
         value: "false"
       - key: CORS_ORIGINS
-        value: "*"
+        value: "CORS_ORIGINS=https://agentic-rag-pied.vercel.app"
       - key: ENABLE_WEB_SEARCH
         value: "true"
       - key: LANGFUSE_PUBLIC_KEY
