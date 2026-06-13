@@ -6,12 +6,24 @@ The collection is persisted on disk under STORAGE_DIR/chroma.
 """
 from __future__ import annotations
 
+import os
+from pathlib import Path
 from typing import Any, Dict, List
 
 from .config import get_settings
 
 _client = None
 _collection = None
+
+
+def _resolve_chroma_path(path: str) -> str:
+    """Use the local bundled Chroma store when a Render path is set locally."""
+    configured = Path(path)
+    if path.startswith("/app/") and (os.name == "nt" or not configured.exists()):
+        local_path = Path(__file__).resolve().parent.parent / "storage" / "experiment_chroma"
+        if local_path.exists():
+            return str(local_path)
+    return path
 
 
 def _get_client():
@@ -21,8 +33,10 @@ def _get_client():
         from chromadb.config import Settings as ChromaSettings
 
         settings = get_settings()
+        chroma_path = _resolve_chroma_path(settings.chroma_path)
+        settings.chroma_path = chroma_path
         _client = chromadb.PersistentClient(
-            path=settings.chroma_path,
+            path=chroma_path,
             settings=ChromaSettings(anonymized_telemetry=False, allow_reset=True),
         )
     return _client

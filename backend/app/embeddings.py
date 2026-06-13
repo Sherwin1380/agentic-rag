@@ -36,15 +36,21 @@ def _prefix(kind: str) -> str:
     model_name = settings.embedding_model.lower()
 
     if kind == "query" and settings.embedding_query_prefix:
-        return settings.embedding_query_prefix
+        return _normalize_prefix(settings.embedding_query_prefix)
     if kind == "passage" and settings.embedding_passage_prefix:
-        return settings.embedding_passage_prefix
+        return _normalize_prefix(settings.embedding_passage_prefix)
 
     if "e5" in model_name:
         return "query: " if kind == "query" else "passage: "
     if "bge" in model_name and kind == "query":
         return "Represent this sentence for searching relevant passages: "
     return ""
+
+
+def _normalize_prefix(prefix: str) -> str:
+    if prefix.endswith(":"):
+        return f"{prefix} "
+    return prefix
 
 
 def _embed(texts: List[str], kind: str) -> List[List[float]]:

@@ -107,6 +107,12 @@ export default function Home() {
             <span className="pill warn">backend offline</span>
           )}
         </div>
+        <div className="notice">
+          Hosted on a free backend, so the first question after a nap can take
+          30-40 seconds to wake up. After that it should move quickly; please
+          avoid rapid-fire testing unless you enjoy watching rate limits do
+          paperwork.
+        </div>
       </header>
 
       <div className="messages">
@@ -174,7 +180,7 @@ export default function Home() {
       <div className="composer">
         <textarea
           value={input}
-          placeholder="Ask about the Claude API…  (Enter to send, Shift+Enter for newline)"
+          placeholder="Ask about banking regulations...  (Enter to send, Shift+Enter for newline)"
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={onKeyDown}
           rows={1}

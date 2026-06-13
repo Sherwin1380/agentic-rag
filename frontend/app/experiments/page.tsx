@@ -126,6 +126,11 @@ export default function ExperimentsPage() {
             Benchmark
           </Link>
         </div>
+        <div className="notice">
+          Hosted on a free backend, so the first request after idle can take
+          30-40 seconds. Please give it a moment before clicking like the button
+          owes you money.
+        </div>
       </header>
 
       {!data && !error && <p className="typing">Loading results…</p>}

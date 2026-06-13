@@ -134,9 +134,20 @@ def experiments():
     if not path.exists():
         return {"status": "empty", "results": [], "completed": 0, "total_configs": 0}
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        data = json.loads(path.read_text(encoding="utf-8"))
     except Exception:
         return {"status": "error", "results": [], "completed": 0, "total_configs": 0}
+
+    if not data.get("corpus_sections"):
+        sections_path = DATA_DIR / "banking" / "sections.jsonl"
+        try:
+            with sections_path.open(encoding="utf-8") as f:
+                data["corpus_sections"] = sum(1 for line in f if line.strip())
+        except Exception:
+            data["corpus_sections"] = 0
+    if "full_corpus" not in data:
+        data["full_corpus"] = bool(data.get("corpus_sections"))
+    return data
 
 
 @app.get("/")
