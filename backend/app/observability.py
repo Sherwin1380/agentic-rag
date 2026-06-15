@@ -28,8 +28,11 @@ def _get_client():
                 public_key=settings.langfuse_public_key,
                 secret_key=settings.langfuse_secret_key,
                 host=settings.langfuse_host,
-                flush_at=1,          # ship every event immediately, don't batch
-                flush_interval=0.1,  # background flush every 100 ms as a safety net
+                # Batch a request's events into ONE POST (flush_at=1 forces a
+                # separate slow round-trip per event — ~4x slower to drain).
+                # A short interval ships promptly; the explicit threaded flush()
+                # at the end of each request is what actually drains the queue.
+                flush_interval=0.5,
             )
         except Exception:
             return None
