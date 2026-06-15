@@ -30,3 +30,6 @@ langfuse==2.57.0
 
 # --- Eval ---
 scikit-learn==1.6.0
+
+# --- MLflow (experiment tracking; pre-installed on Databricks, optional locally) ---
+mlflow==2.19.0

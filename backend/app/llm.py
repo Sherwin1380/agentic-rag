@@ -37,12 +37,13 @@ def chat(
     tools: Optional[List[Dict[str, Any]]] = None,
     tool_choice: str = "auto",
     temperature: Optional[float] = None,
+    model: Optional[str] = None,
 ) -> Any:
     """Single chat completion. Returns the raw Groq message object."""
     settings = get_settings()
     client = _get_client()
     kwargs: Dict[str, Any] = {
-        "model": settings.groq_model,
+        "model": model or settings.groq_model,
         "messages": messages,
         "temperature": settings.llm_temperature if temperature is None else temperature,
     }

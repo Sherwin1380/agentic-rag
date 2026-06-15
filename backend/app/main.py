@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
-from . import agent, retriever, vectorstore
+from . import agent, governance, llmops, retriever, vectorstore
 from .config import get_settings
 from .llm import LLMNotConfigured
 from .models import (
@@ -148,6 +148,35 @@ def experiments():
     if "full_corpus" not in data:
         data["full_corpus"] = bool(data.get("corpus_sections"))
     return data
+
+
+@app.get("/llmops/status")
+def llmops_status():
+    """LLMOps dashboard: deployment manifest + recent response log summary."""
+    manifest = llmops.read_deployment_manifest()
+    log_entries = llmops.read_response_log(limit=20)
+    fallback_count = sum(1 for e in log_entries if e.get("fallback_used"))
+    high_risk = sum(1 for e in log_entries if e.get("hallucination_risk") == "high")
+    avg_latency = (
+        round(sum(e.get("latency_ms", 0) for e in log_entries) / len(log_entries), 1)
+        if log_entries else 0.0
+    )
+    return {
+        "prompt_version": llmops.PROMPT_VERSION,
+        "manifest": manifest,
+        "recent_requests": len(log_entries),
+        "fallback_activations": fallback_count,
+        "high_hallucination_risk_count": high_risk,
+        "avg_latency_ms": avg_latency,
+        "log_tail": log_entries[-5:] if log_entries else [],
+    }
+
+
+@app.get("/governance/audit")
+def governance_audit(limit: int = 20):
+    """Compliance audit log: last N entries with grounding scores and risk levels."""
+    entries = governance.read_audit_log(limit=limit)
+    return {"count": len(entries), "entries": entries}
 
 
 @app.get("/")

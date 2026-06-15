@@ -20,6 +20,7 @@ from typing import Dict, List, Tuple
 
 from .config import CORPUS_DIR, DATA_DIR, get_settings
 from . import embeddings, vectorstore, retriever
+from .warehouse import get_warehouse
 
 BANKING_JSONL = DATA_DIR / "banking" / "sections.jsonl"
 
@@ -191,6 +192,39 @@ def build_banking_index(
             print(f"  embedded {end}/{total}")
 
     retriever.refresh()
+
+    # --- Warehouse pipeline: RAW → STAGING → ENRICHED ---
+    # Mirrors a Snowflake 3-tier data architecture so corpus lineage is auditable.
+    try:
+        wh = get_warehouse()
+        wh.write_raw(docs)
+        wh.write_staging(docs)
+        enriched = [
+            {
+                "chunk_id": ids[i],
+                "section_id": metadatas[i].get("source", ""),
+                "title": metadatas[i].get("title", ""),
+                "category": metadatas[i].get("category", ""),
+                "part": metadatas[i].get("part", ""),
+                "section": metadatas[i].get("section", ""),
+                "url": metadatas[i].get("url", ""),
+                "chunk_index": metadatas[i].get("chunk_index", 0),
+                "char_count": len(texts[i]),
+                "embedding_model": settings.embedding_model,
+            }
+            for i in range(len(ids))
+        ]
+        wh.write_enriched(enriched)
+        if verbose:
+            print(
+                f"Warehouse: raw={wh.count('raw')} "
+                f"staging={wh.count('staging')} "
+                f"enriched={wh.count('enriched')}"
+            )
+    except Exception as exc:  # noqa: BLE001 - warehouse failures never block indexing
+        if verbose:
+            print(f"[warehouse] skipped: {exc}")
+
     if verbose:
         print(f"Indexed {total} chunks from {len(docs)} sections.")
     return total

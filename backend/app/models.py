@@ -37,6 +37,13 @@ class ChatResponse(BaseModel):
     sources: List[Source] = Field(default_factory=list)
     steps: List[AgentStep] = Field(default_factory=list)
     trace_id: Optional[str] = None
+    # LLMOps metadata
+    model_used: Optional[str] = None
+    fallback_used: bool = False
+    latency_ms: Optional[float] = None
+    # Governance / risk metadata
+    grounding_score: float = 0.0
+    hallucination_risk: str = "unknown"
 
 
 class HealthResponse(BaseModel):

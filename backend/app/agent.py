@@ -1,7 +1,7 @@
 """The agent layer.
 
 A tool-using loop over Groq's function-calling API. On each turn the model may:
-  - call search_documentation  -> hybrid RAG over the Claude-docs corpus
+  - call search_documentation  -> hybrid RAG over the banking regulations corpus
   - call calculator            -> safe arithmetic
   - call web_search            -> DuckDuckGo, for things outside the corpus
   - or answer directly         -> for greetings / general knowledge
@@ -9,13 +9,28 @@ A tool-using loop over Groq's function-calling API. On each turn the model may:
 This "decide whether to retrieve" behaviour is the difference between an agent
 and a naive embed-and-retrieve pipeline. Citations are tracked across every
 retrieval call so the final answer can reference [1], [2], ... stably.
+
+LLMOps:
+  - Every system prompt is version-tagged (PROMPT_VERSION).
+  - Token counts and cost estimates are logged for each request.
+  - A fallback model is activated automatically on tool_use_failed errors.
+  - Responses are appended to a structured JSONL log for rollback-aware ops.
+
+Governance:
+  - Grounding score: fraction of answer sentences that carry a citation.
+  - Hallucination risk: classified low/medium/high from grounding + source count.
+  - Citation validation: orphaned [n] references are flagged.
+  - Retrieval traceability: full audit trail of queries, chunks, and scores.
+  - An append-only compliance audit log records every request.
 """
 from __future__ import annotations
 
 import json
+import time
+import uuid
 from typing import Any, Dict, List, Tuple
 
-from . import llm, tools, retriever
+from . import governance, llm, llmops, retriever, tools
 from .config import get_settings
 from .models import AgentStep, ChatMessage, Source
 from .observability import Trace
@@ -41,6 +56,10 @@ regulations do not contain the answer, say so plainly instead of guessing. This 
 not legal advice.
 - Be concise and reference the specific CFR section when possible.
 """
+
+# Register this prompt with the LLMOps version registry so every deployed
+# instance can be traced back to the exact prompt text that produced it.
+llmops.register_prompt(llmops.PROMPT_VERSION, SYSTEM_PROMPT)
 
 
 def _tool_schemas() -> List[Dict[str, Any]]:
@@ -188,13 +207,15 @@ def _recover_without_tools(
     registry: Dict[str, Source],
     steps: List[AgentStep],
     trace: Trace,
+    model: str | None = None,
 ) -> str:
     """Fallback when Groq fails to emit a valid tool call (400 tool_use_failed).
 
-    Llama tool-calling on Groq occasionally returns a malformed function call.
-    Rather than crash the request, we guarantee grounding by retrieving on the
-    raw user message (if nothing was retrieved yet), inject the chunks, and ask
-    for a final answer with tools disabled.
+    Guarantees grounding by retrieving on the raw user message if nothing was
+    retrieved yet, then asks for a final answer with tools disabled.  The
+    `model` parameter allows routing to the fallback model (e.g. llama3-8b-8192)
+    so a smaller, more reliable model handles recovery instead of retrying the
+    same primary model that just failed.
     """
     if not registry:
         payload = _do_search(user_message, registry, trace)
@@ -218,7 +239,7 @@ def _recover_without_tools(
             }
         )
     try:
-        completion = llm.chat(messages, tools=None)
+        completion = llm.chat(messages, tools=None, model=model)
         return completion.choices[0].message.content or ""
     except Exception:
         return "Sorry — I hit an error generating a response. Please try again."
@@ -227,12 +248,18 @@ def _recover_without_tools(
 def run_agent(
     message: str, history: List[ChatMessage]
 ) -> Dict[str, Any]:
-    """Run the agentic RAG loop and return answer + sources + steps + trace id."""
+    """Run the agentic RAG loop and return answer + sources + steps + metadata."""
     settings = get_settings()
-    trace = Trace(name="agentic_rag_chat", user_input=message)
+    request_id = str(uuid.uuid4())
+    start_time = time.perf_counter()
+    trace = Trace(
+        name="agentic_rag_chat",
+        user_input=message,
+        metadata={"prompt_version": llmops.PROMPT_VERSION, "request_id": request_id},
+    )
 
     messages: List[Dict[str, Any]] = [{"role": "system", "content": SYSTEM_PROMPT}]
-    for h in history[-6:]:  # keep the last few turns for context
+    for h in history[-6:]:
         messages.append({"role": h.role, "content": h.content})
     messages.append({"role": "user", "content": message})
 
@@ -241,9 +268,14 @@ def run_agent(
     tool_schemas = _tool_schemas()
 
     answer = ""
+    fallback_used = False
+    model_used = settings.groq_model
+    total_input_tokens = 0
+    total_output_tokens = 0
+
     for _ in range(settings.max_agent_steps):
         gen = trace.generation(
-            name="llm_decision", model=settings.groq_model, input=messages
+            name="llm_decision", model=model_used, input=messages
         )
         try:
             completion = llm.chat(messages, tools=tool_schemas, tool_choice="auto")
@@ -251,8 +283,17 @@ def run_agent(
             raise
         except Exception as exc:  # noqa: BLE001 - recover from tool_use_failed etc.
             gen.end(output=f"[recovered: {exc}]")
-            answer = _recover_without_tools(messages, message, registry, steps, trace)
+            fallback_used = True
+            model_used = settings.fallback_model
+            answer = _recover_without_tools(
+                messages, message, registry, steps, trace, model=settings.fallback_model
+            )
             break
+
+        if hasattr(completion, "usage") and completion.usage:
+            total_input_tokens += getattr(completion.usage, "prompt_tokens", 0) or 0
+            total_output_tokens += getattr(completion.usage, "completion_tokens", 0) or 0
+
         msg = completion.choices[0].message
         gen.end(output=msg.content or "[tool_calls]")
 
@@ -279,23 +320,83 @@ def run_agent(
                 )
             continue
 
-        # No tool calls -> this is the final answer.
         answer = msg.content or ""
         break
     else:
-        # Loop exhausted: force a final answer with no further tool use.
-        gen = trace.generation(name="llm_final", model=settings.groq_model, input=messages)
+        gen = trace.generation(name="llm_final", model=model_used, input=messages)
         completion = llm.chat(messages, tools=None)
         answer = completion.choices[0].message.content or ""
         gen.end(output=answer)
+        if hasattr(completion, "usage") and completion.usage:
+            total_input_tokens += getattr(completion.usage, "prompt_tokens", 0) or 0
+            total_output_tokens += getattr(completion.usage, "completion_tokens", 0) or 0
 
     sources = sorted(registry.values(), key=lambda s: s.n)
+    latency_ms = round((time.perf_counter() - start_time) * 1000, 1)
+
+    # --- Governance checks ---
+    grounding_score = governance.compute_grounding_score(answer, sources)
+    hallucination_risk = governance.assess_hallucination_risk(
+        answer, sources, grounding_score
+    )
+    citation_check = governance.validate_citations(answer, sources)
+    retrieval_trace = governance.build_retrieval_trace(steps, sources)
+
+    # --- Cost estimation ---
+    cost_usd = llmops.estimate_cost(model_used, total_input_tokens, total_output_tokens)
+
     trace.update(output=answer)
     trace.flush()
+
+    # --- LLMOps response log ---
+    try:
+        llmops.log_response(
+            llmops.ResponseLogEntry(
+                request_id=request_id,
+                timestamp=time.time(),
+                prompt_version=llmops.PROMPT_VERSION,
+                model_used=model_used,
+                fallback_used=fallback_used,
+                user_message=message,
+                answer_preview=answer[:300],
+                sources_cited=len(sources),
+                input_tokens=total_input_tokens,
+                output_tokens=total_output_tokens,
+                latency_ms=latency_ms,
+                cost_usd=cost_usd,
+                trace_id=trace.id,
+                grounding_score=grounding_score,
+                hallucination_risk=hallucination_risk,
+            )
+        )
+    except Exception:  # noqa: BLE001 - never let logging break the response
+        pass
+
+    # --- Compliance audit log (append-only) ---
+    try:
+        governance.audit_log(
+            request_id=request_id,
+            user_message=message,
+            answer=answer,
+            grounding_score=grounding_score,
+            hallucination_risk=hallucination_risk,
+            citation_check=citation_check,
+            retrieval_trace=retrieval_trace,
+            model=model_used,
+            prompt_version=llmops.PROMPT_VERSION,
+            trace_id=trace.id,
+        )
+    except Exception:  # noqa: BLE001
+        pass
 
     return {
         "answer": answer,
         "sources": sources,
         "steps": steps,
         "trace_id": trace.id,
+        "model_used": model_used,
+        "fallback_used": fallback_used,
+        "latency_ms": latency_ms,
+        "grounding_score": grounding_score,
+        "hallucination_risk": hallucination_risk,
     }

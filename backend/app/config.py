@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     # --- LLM (Groq) ---
     groq_api_key: str = ""
     groq_model: str = "llama-3.3-70b-versatile"
+    fallback_model: str = "llama3-8b-8192"  # used when primary returns tool_use_failed
     llm_temperature: float = 0.1
     max_agent_steps: int = 5  # safety cap on the tool-use loop
 
