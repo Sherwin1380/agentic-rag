@@ -4,7 +4,7 @@ Corpus files are Markdown with a tiny frontmatter block:
 
     ---
     title: Models overview
-    url: https://docs.claude.com/en/docs/about-claude/models
+    url: https://www.ecfr.gov/current/title-12/section-1.1
     ---
     # body...
 

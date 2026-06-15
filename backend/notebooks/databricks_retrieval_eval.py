@@ -6,7 +6,7 @@
 # MAGIC # Agentic RAG — Retrieval Evaluation Notebook
 # MAGIC
 # MAGIC **Purpose:** Evaluate hybrid retrieval quality (BM25 + dense + RRF) on the
-# MAGIC Claude API documentation corpus and log every metric to MLflow.
+# MAGIC U.S. banking regulations corpus (Title 12 CFR) and log every metric to MLflow.
 # MAGIC
 # MAGIC **Works on:** Databricks Free Edition (Serverless), Databricks Community Edition
 # MAGIC (cluster), or locally as a plain Python script.
@@ -45,20 +45,17 @@ _GITHUB_RAW = (
     "https://raw.githubusercontent.com/Sherwin1380/agentic-rag/main/backend"
 )
 
-# Corpus: Claude API documentation (7 markdown files committed to the repo).
-# These are the same docs the production RAG agent searches over.
-_CORPUS_FILES = [
-    "data/corpus/models-overview.md",
-    "data/corpus/messages-api.md",
-    "data/corpus/tool-use.md",
-    "data/corpus/streaming.md",
-    "data/corpus/prompt-caching.md",
-    "data/corpus/thinking-and-effort.md",
-    "data/corpus/pricing-and-cost.md",
-]
+# Corpus: U.S. banking regulations — 5,002 Title 12 CFR sections (OCC, FRS,
+# FDIC, NCUA, CFPB), the same data the production RAG agent searches over.
+_BANKING_SECTIONS = "data/banking/sections.jsonl"
 
-# Eval set: 15 labelled QA pairs for the Claude API corpus.
-_QA_FILE = "data/eval/qa.jsonl"
+# Eval set: 88 labelled QA pairs drawn from the banking corpus.
+_QA_FILE = "data/banking/qa.jsonl"
+
+# Max sections to embed for this run.  Set to 0 to embed all 5,002 (≈5 min on
+# Serverless CPU).  The default keeps a fast demo: all QA-relevant sections are
+# always included; the rest are random distractors to fill SAMPLE_SIZE.
+SAMPLE_SIZE = 500
 
 # Tmp dir: always writable in both Serverless and cluster runtimes.
 TMP_DIR = Path("/tmp/agentic-rag")
@@ -95,42 +92,40 @@ def _load_jsonl_str(text: str) -> list[dict]:
     return [json.loads(l) for l in text.splitlines() if l.strip()]
 
 
-# --- Download corpus markdown files ---
-print("Fetching corpus from GitHub ...")
-corpus_docs: list[dict] = []
-for rel_path in _CORPUS_FILES:
-    url = f"{_GITHUB_RAW}/{rel_path}"
-    try:
-        raw = _fetch_text(url)
-        # Parse optional frontmatter: ---\ntitle: ...\nurl: ...\n---
-        meta: dict[str, str] = {}
-        body = raw
-        if raw.startswith("---"):
-            end = raw.find("\n---", 3)
-            if end != -1:
-                for line in raw[3:end].strip().splitlines():
-                    if ":" in line:
-                        k, v = line.split(":", 1)
-                        meta[k.strip()] = v.strip()
-                body = raw[end + 4:].lstrip("\n")
-        doc_id = rel_path.split("/")[-1]          # e.g. "models-overview.md"
-        corpus_docs.append({
-            "id":    doc_id,
-            "title": meta.get("title", doc_id),
-            "text":  body,
-        })
-        print(f"  OK  {doc_id}  ({len(body):,} chars)")
-    except Exception as exc:
-        print(f"  SKIP {rel_path}: {exc}")
-
-print(f"\n{len(corpus_docs)} corpus documents loaded")
-
-# --- Download QA eval set ---
-print(f"\nFetching eval set from GitHub ...")
-qa_url = f"{_GITHUB_RAW}/{_QA_FILE}"
-qa_text = _fetch_text(qa_url)
+# --- Download QA eval set first (needed to select QA-relevant sections) ---
+print("Fetching eval set from GitHub ...")
+qa_url     = f"{_GITHUB_RAW}/{_QA_FILE}"
+qa_text    = _fetch_text(qa_url)
 qa_records = _load_jsonl_str(qa_text)
-print(f"{len(qa_records)} eval questions loaded")
+print(f"  {len(qa_records)} eval questions loaded")
+
+relevant_ids: set[str] = set()
+for rec in qa_records:
+    relevant_ids.update(rec.get("relevant_sources", []))
+
+# --- Download all banking sections ---
+print("\nFetching banking corpus from GitHub ...")
+sections_url  = f"{_GITHUB_RAW}/{_BANKING_SECTIONS}"
+sections_text = _fetch_text(sections_url)
+all_sections  = _load_jsonl_str(sections_text)
+print(f"  {len(all_sections):,} sections in full corpus")
+
+# Build evaluation corpus: all QA-relevant sections + random distractors.
+# This guarantees every eval question has its answer section in the corpus
+# while keeping the embedding step fast for the Serverless demo.
+import random as _rnd
+_rnd.seed(42)
+relevant_secs  = [s for s in all_sections if s["id"] in relevant_ids]
+distractor_secs = [s for s in all_sections if s["id"] not in relevant_ids]
+distractor_n   = max(0, (SAMPLE_SIZE or len(all_sections)) - len(relevant_secs))
+sample         = relevant_secs + _rnd.sample(distractor_secs, min(distractor_n, len(distractor_secs)))
+
+corpus_docs: list[dict] = [
+    {"id": s["id"], "title": s["title"], "text": s["text"]}
+    for s in sample
+]
+print(f"  {len(relevant_secs)} QA-relevant + {len(sample) - len(relevant_secs)} distractors "
+      f"= {len(corpus_docs)} sections in eval corpus")
 
 # COMMAND ----------
 

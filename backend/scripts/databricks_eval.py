@@ -163,7 +163,7 @@ def main() -> None:
     parser.add_argument(
         "--qa",
         default=str(DATA_DIR / "banking" / "qa.jsonl"),
-        help="path to QA JSONL (falls back to Claude-docs eval if banking not built)",
+        help="path to QA JSONL (falls back to legacy eval set if banking not built)",
     )
     parser.add_argument(
         "--mlflow",

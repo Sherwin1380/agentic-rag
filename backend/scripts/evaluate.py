@@ -137,7 +137,7 @@ def main():
 
     qa_path = Path(args.qa)
     if not qa_path.exists():
-        # Fall back to the original Claude-docs eval if banking isn't built yet.
+        # Fall back to the legacy eval set if the banking eval isn't built yet.
         qa_path = EVAL_DIR / "qa.jsonl"
     print(f"Eval set: {qa_path}")
 

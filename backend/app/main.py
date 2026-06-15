@@ -29,7 +29,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="Agentic RAG over Claude API docs",
+    title="Agentic RAG over U.S. Banking Regulations",
     version="1.0.0",
     description="Hybrid-search RAG with an agent that decides when to retrieve, "
     "calculate, or search the web.",

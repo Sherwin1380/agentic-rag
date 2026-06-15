@@ -348,7 +348,7 @@ uploads — it fetches all data directly from this public GitHub repo.
 | Latency p50 | **190 ms** |
 | Latency p95 | **234 ms** |
 
-*Claude API documentation corpus · 15 questions · `intfloat/e5-small-v2` · BM25 + dense + RRF*
+*U.S. banking regulations corpus (Title 12 CFR) · 88 questions · `intfloat/e5-small-v2` · BM25 + dense + RRF*
 
 ### 1. Sign up
 
@@ -375,10 +375,13 @@ compute automatically.
 - Click **Run all** (or Shift+Enter cell by cell)
 
 Cell 0 installs `sentence-transformers` and `rank-bm25` via `%pip install`.
-Cells 1–2 fetch corpus and eval data from GitHub over HTTPS (no file upload
-required). Cell 7 logs all params and metrics to MLflow via the Databricks REST
-API, bypassing the Spark Connect integration (which is not available in
-Serverless).
+Cell 2 fetches the banking corpus (`data/banking/sections.jsonl`, 5,002 Title
+12 CFR sections) and eval set (`data/banking/qa.jsonl`, 88 labelled questions)
+from GitHub over HTTPS — no file uploads required. By default it embeds a
+500-section sample (all QA-relevant sections + random distractors) for a fast
+demo; set `SAMPLE_SIZE = 0` in Cell 1 to run against the full corpus.
+Cell 7 logs all params and metrics to MLflow via the Databricks REST API,
+bypassing the Spark Connect integration (which is not available in Serverless).
 
 ### 4. View results in MLflow
 
