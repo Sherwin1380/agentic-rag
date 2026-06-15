@@ -27,6 +27,8 @@ def _get_client():
                 public_key=settings.langfuse_public_key,
                 secret_key=settings.langfuse_secret_key,
                 host=settings.langfuse_host,
+                flush_at=1,          # ship every event immediately, don't batch
+                flush_interval=0.1,  # background flush every 100 ms as a safety net
             )
         except Exception:
             return None
