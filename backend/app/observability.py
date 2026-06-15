@@ -7,10 +7,14 @@ and the LLM generations — which is what makes the system look production-grade
 """
 from __future__ import annotations
 
+import logging
 import threading
+import time
 from typing import Any, Dict, Optional
 
 from .config import get_settings
+
+_log = logging.getLogger(__name__)
 
 _client = None
 _client_lock = threading.Lock()
@@ -96,10 +100,24 @@ class Trace:
         # Render: events sat queued until the process got a SIGTERM on deploy,
         # which then drained them via the SDK's atexit handler — so traces only
         # appeared after a redeploy.  Blocking here completes the HTTP POST
-        # while the container is provably awake.  With batched uploads this is
-        # only ~0.3-0.7s, an acceptable per-request cost for reliable tracing.
-        if self._client is not None:
-            try:
-                self._client.flush()
-            except Exception:
-                pass
+        # while the container is provably awake.  Healthy flush is ~0.3-0.8s.
+        #
+        # Logged (not silently swallowed) so Render logs reveal whether the
+        # flush actually completes per-request: a slow/failing flush here is
+        # the cause of "events from 10 min ago all appear at once" — the queue
+        # backs up and a later successful flush drains the whole backlog.
+        if self._client is None:
+            return
+        t0 = time.perf_counter()
+        try:
+            self._client.flush()
+            dt = time.perf_counter() - t0
+            if dt > 3.0:
+                _log.warning("langfuse flush slow: %.1fs (trace %s)", dt, self.id)
+            else:
+                _log.debug("langfuse flush ok: %.2fs (trace %s)", dt, self.id)
+        except Exception as exc:
+            _log.error(
+                "langfuse flush FAILED after %.1fs (trace %s): %s",
+                time.perf_counter() - t0, self.id, exc,
+            )
