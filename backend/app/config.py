@@ -29,10 +29,18 @@ class Settings(BaseSettings):
 
     # --- LLM (Groq) ---
     groq_api_key: str = ""
-    groq_model: str = "llama-3.3-70b-versatile"
-    fallback_model: str = "llama-3.1-8b-instant"  # used when primary returns tool_use_failed
+    # Model choice is constrained by Groq tool-calling behaviour + free-tier TPM:
+    #  - llama-3.3-70b-versatile emits malformed XML tool calls (<function=...>)
+    #    → 400 tool_use_failed on EVERY retrieval. Unusable for tool calling.
+    #  - gpt-oss-120b/20b are reasoning models that over-call tools (4 searches
+    #    per question) and even call tools on the final tools=None answer turn,
+    #    bloating context past the free-tier 6000 TPM limit.
+    #  - llama-3.1-8b-instant emits clean JSON tool calls, searches once, makes
+    #    correct retrieve-vs-answer decisions, and stays within free-tier TPM.
+    groq_model: str = "llama-3.1-8b-instant"
+    fallback_model: str = "llama-3.1-8b-instant"  # recovery path runs with tools disabled
     llm_temperature: float = 0.1
-    max_agent_steps: int = 5  # safety cap on the tool-use loop
+    max_agent_steps: int = 3  # cap tool loop so context stays under free-tier TPM
 
     # --- Embeddings ---
     embedding_model: str = "intfloat/e5-small-v2"
