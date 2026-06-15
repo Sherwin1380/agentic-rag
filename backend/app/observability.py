@@ -13,6 +13,7 @@ from typing import Any, Dict, Optional
 from .config import get_settings
 
 _client = None
+_client_lock = threading.Lock()
 
 
 def _get_client():
@@ -20,22 +21,26 @@ def _get_client():
     settings = get_settings()
     if not settings.langfuse_enabled:
         return None
+    # Double-checked locking: without the lock, two concurrent first-requests
+    # each build a Langfuse client, orphaning one queue + consumer thread so
+    # half the events never ship.
     if _client is None:
-        try:
-            from langfuse import Langfuse
+        with _client_lock:
+            if _client is None:
+                try:
+                    from langfuse import Langfuse
 
-            _client = Langfuse(
-                public_key=settings.langfuse_public_key,
-                secret_key=settings.langfuse_secret_key,
-                host=settings.langfuse_host,
-                # Batch a request's events into ONE POST (flush_at=1 forces a
-                # separate slow round-trip per event — ~4x slower to drain).
-                # A short interval ships promptly; the explicit threaded flush()
-                # at the end of each request is what actually drains the queue.
-                flush_interval=0.5,
-            )
-        except Exception:
-            return None
+                    _client = Langfuse(
+                        public_key=settings.langfuse_public_key,
+                        secret_key=settings.langfuse_secret_key,
+                        host=settings.langfuse_host,
+                        # Batch a request's events into ONE POST (flush_at=1
+                        # forces a separate slow round-trip per event — ~4x
+                        # slower to drain).
+                        flush_interval=0.5,
+                    )
+                except Exception:
+                    return None
     return _client
 
 
@@ -86,9 +91,15 @@ class Trace:
                 pass
 
     def flush(self) -> None:
-        # Run in a daemon thread so the HTTP round-trip to Langfuse cloud
-        # doesn't block the API response.  flush_at=1 already ships events
-        # immediately via the background consumer; this is a safety drain.
+        # Flush SYNCHRONOUSLY within the request.  A fire-and-forget daemon
+        # thread (or relying on the background consumer) proved unreliable on
+        # Render: events sat queued until the process got a SIGTERM on deploy,
+        # which then drained them via the SDK's atexit handler — so traces only
+        # appeared after a redeploy.  Blocking here completes the HTTP POST
+        # while the container is provably awake.  With batched uploads this is
+        # only ~0.3-0.7s, an acceptable per-request cost for reliable tracing.
         if self._client is not None:
-            t = threading.Thread(target=self._client.flush, daemon=True)
-            t.start()
+            try:
+                self._client.flush()
+            except Exception:
+                pass
