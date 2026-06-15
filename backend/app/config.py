@@ -52,7 +52,7 @@ class Settings(BaseSettings):
     enable_sparse_bm25: bool = True
 
     # --- Tools ---
-    enable_web_search: bool = True
+    enable_web_search: bool = False
 
     # --- Observability (optional, free Langfuse cloud tier) ---
     langfuse_public_key: str = ""

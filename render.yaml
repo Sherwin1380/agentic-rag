@@ -35,7 +35,7 @@ services:
       - key: CORS_ORIGINS
         value: "https://agentic-rag-pied.vercel.app"
       - key: ENABLE_WEB_SEARCH
-        value: "true"
+        value: "false"
       - key: LANGFUSE_PUBLIC_KEY
         sync: false
       - key: LANGFUSE_SECRET_KEY
