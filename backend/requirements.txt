@@ -31,5 +31,7 @@ langfuse==2.57.0
 # --- Eval ---
 scikit-learn==1.6.0
 
-# --- MLflow (experiment tracking; pre-installed on Databricks, optional locally) ---
-mlflow==2.19.0
+# MLflow is NOT listed here — it adds ~15 heavy transitive deps (pyarrow,
+# sqlalchemy, flask, gunicorn…) and the production API never imports it.
+# Install separately for local eval scripts:  pip install mlflow
+# On Databricks it is pre-installed in the Serverless runtime.
