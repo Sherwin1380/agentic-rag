@@ -26,9 +26,10 @@ Governance:
 from __future__ import annotations
 
 import json
+import re
 import time
 import uuid
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from . import governance, llm, llmops, retriever, tools
 from .config import get_settings
@@ -201,6 +202,31 @@ def _message_to_dict(msg: Any) -> Dict[str, Any]:
     return d
 
 
+_XML_TOOL_RE = re.compile(
+    r"<function=(?P<name>\w+)\s*(?P<args>\{.*?\})\s*</function>", re.DOTALL
+)
+
+
+def _parse_xml_tool_call(exc: Exception) -> Tuple[Optional[str], Optional[Dict]]:
+    """Groq's llama-3.3-70b-versatile sometimes outputs tool calls in XML format
+    (<function=NAME{...}</function>) instead of JSON, triggering a 400
+    tool_use_failed.  The intent is correct — extract name + args so the caller
+    can execute the tool without a second LLM round-trip.
+    """
+    try:
+        # Prefer the structured body if the SDK exposes it
+        body = getattr(exc, "body", None) or {}
+        fg = (body.get("error") or {}).get("failed_generation", "") if isinstance(body, dict) else ""
+        if not fg:
+            fg = str(exc)
+        m = _XML_TOOL_RE.search(fg)
+        if m:
+            return m.group("name"), json.loads(m.group("args"))
+    except Exception:
+        pass
+    return None, None
+
+
 def _recover_without_tools(
     messages: List[Dict[str, Any]],
     user_message: str,
@@ -287,7 +313,34 @@ def run_agent(
         except llm.LLMNotConfigured:
             raise
         except Exception as exc:  # noqa: BLE001 - recover from tool_use_failed etc.
-            gen.end(output=f"[recovered: {exc}]")
+            gen.end(output=f"[xml-tool-parse: {exc}]")
+            # llama-3.3-70b-versatile sometimes outputs <function=NAME{...}</function>
+            # instead of JSON tool calls.  Parse and execute directly — no second
+            # LLM call needed, just inject the tool result and continue the loop.
+            xml_name, xml_args = _parse_xml_tool_call(exc)
+            valid_tools = {s["function"]["name"] for s in tool_schemas}
+            if xml_name and xml_name in valid_tools:
+                result, summary = _execute_tool(xml_name, xml_args or {}, registry, trace)
+                steps.append(AgentStep(tool=xml_name, arguments=xml_args or {}, summary=summary))
+                tc_id = f"call_{uuid.uuid4().hex[:8]}"
+                messages.append({
+                    "role": "assistant",
+                    "content": "",
+                    "tool_calls": [{
+                        "id": tc_id,
+                        "type": "function",
+                        "function": {"name": xml_name, "arguments": json.dumps(xml_args or {})},
+                    }],
+                })
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tc_id,
+                    "name": xml_name,
+                    "content": json.dumps(result)[:8000],
+                })
+                continue  # next iteration: model sees tool result and writes the answer
+            # Unparseable error — fall back to the smaller model without tools
+            gen.end(output=f"[fallback: {exc}]")
             fallback_used = True
             model_used = settings.fallback_model
             answer = _recover_without_tools(

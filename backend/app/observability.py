@@ -7,6 +7,7 @@ and the LLM generations — which is what makes the system look production-grade
 """
 from __future__ import annotations
 
+import threading
 from typing import Any, Dict, Optional
 
 from .config import get_settings
@@ -82,8 +83,9 @@ class Trace:
                 pass
 
     def flush(self) -> None:
+        # Run in a daemon thread so the HTTP round-trip to Langfuse cloud
+        # doesn't block the API response.  flush_at=1 already ships events
+        # immediately via the background consumer; this is a safety drain.
         if self._client is not None:
-            try:
-                self._client.flush()
-            except Exception:
-                pass
+            t = threading.Thread(target=self._client.flush, daemon=True)
+            t.start()
