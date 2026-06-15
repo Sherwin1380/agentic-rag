@@ -117,7 +117,7 @@ def _tool_schemas() -> List[Dict[str, Any]]:
                     "name": "web_search",
                     "description": (
                         "Search the public web (DuckDuckGo). Use ONLY for topics "
-                        "outside the Claude documentation, e.g. current events."
+                        "outside the banking regulations corpus, e.g. current events."
                     ),
                     "parameters": {
                         "type": "object",
@@ -241,7 +241,12 @@ def _recover_without_tools(
     try:
         completion = llm.chat(messages, tools=None, model=model)
         return completion.choices[0].message.content or ""
-    except Exception:
+    except Exception as exc:
+        trace.span(name="recovery_error", input={"model": model, "error": str(exc)}).end(
+            output=str(exc)
+        )
+        import logging as _log
+        _log.getLogger(__name__).error("Recovery LLM call failed: %s", exc)
         return "Sorry — I hit an error generating a response. Please try again."
 
 

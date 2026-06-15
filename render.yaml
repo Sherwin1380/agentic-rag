@@ -16,6 +16,8 @@ services:
         sync: false          # set this secret in the dashboard
       - key: GROQ_MODEL
         value: llama-3.3-70b-versatile
+      - key: FALLBACK_MODEL
+        value: llama-3.1-8b-instant
       - key: CHROMA_PATH
         value: /app/storage/experiment_chroma
       - key: COLLECTION_NAME
