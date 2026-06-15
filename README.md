@@ -35,9 +35,10 @@ Hosted:
   version that produced it, enabling rollback-aware operations.
 - Cost tracking: token counts from the Groq API are mapped to provider pricing
   and logged per request.
-- Explicit fallback model: when the primary model returns a `tool_use_failed`
-  error, the agent automatically routes to a smaller fallback model
-  (`llama3-8b-8192`) without retrying the same failure.
+- Resilient tool calling: malformed tool calls (Groq `tool_use_failed`) are
+  recovered by parsing the model's intended call out of the error and executing
+  it directly; if that fails, the agent routes to a fallback model with tools
+  disabled rather than retrying the same failure.
 - Structured response log: every chat request is appended to
   `storage/response_log.jsonl` — including latency, model used, fallback
   activation, cost estimate, and grounding score.
@@ -72,8 +73,8 @@ Hosted:
 
 | Layer | Choice |
 |-------|--------|
-| LLM (primary) | Groq, `llama-3.3-70b-versatile` |
-| LLM (fallback) | Groq, `llama3-8b-8192` |
+| LLM (primary) | Groq, `llama-3.1-8b-instant` |
+| LLM (fallback) | Groq, `llama-3.1-8b-instant` |
 | Embeddings | `intfloat/e5-small-v2` |
 | Vector DB | Chroma, persisted under `backend/storage/experiment_chroma` |
 | Sparse retrieval | `rank-bm25` |
@@ -217,7 +218,7 @@ python scripts/evaluate_experiment_chroma.py
   "sources": [{ "n": 1, "title": "...", "source": "...", "snippet": "..." }],
   "steps": [{ "tool": "search_documentation", "arguments": {}, "summary": "..." }],
   "trace_id": "optional-langfuse-id",
-  "model_used": "llama-3.3-70b-versatile",
+  "model_used": "llama-3.1-8b-instant",
   "fallback_used": false,
   "latency_ms": 1240.5,
   "grounding_score": 0.857,
@@ -232,8 +233,8 @@ python scripts/evaluate_experiment_chroma.py
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `GROQ_API_KEY` | *(required)* | Groq API key |
-| `GROQ_MODEL` | `llama-3.3-70b-versatile` | Primary LLM |
-| `FALLBACK_MODEL` | `llama3-8b-8192` | Fallback LLM on tool_use_failed |
+| `GROQ_MODEL` | `llama-3.1-8b-instant` | Primary LLM |
+| `FALLBACK_MODEL` | `llama-3.1-8b-instant` | Fallback LLM on tool_use_failed |
 | `CHROMA_PATH` | `backend/storage/experiment_chroma` | ChromaDB path |
 | `COLLECTION_NAME` | `banking_exp_full_e5_small_v2_1500_255` | Chroma collection |
 | `EMBEDDING_MODEL` | `intfloat/e5-small-v2` | Sentence transformer model |
