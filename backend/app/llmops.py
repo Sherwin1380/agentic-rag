@@ -22,7 +22,7 @@ from .config import STORAGE_DIR, get_settings
 # Prompt Registry — semantic versioning for system prompts
 # ---------------------------------------------------------------------------
 
-PROMPT_VERSION = "v1.3.0"
+PROMPT_VERSION = "v1.3.1"
 PROMPT_REGISTRY: Dict[str, str] = {}
 
 

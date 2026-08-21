@@ -44,6 +44,8 @@ You have tools available. Decide for each question:
 - For anything about banking regulations, requirements, thresholds, or definitions, \
 CALL search_documentation first. Do not answer from memory; ground every claim in \
 retrieved regulation text.
+- Call search_documentation at most once per user question. After documentation is \
+returned, use those results to answer instead of searching again.
 - For arithmetic (e.g. computing a reserve, fee, or threshold), CALL calculator. \
 Never do mental math.
 - For current events or topics clearly outside the regulations, CALL web_search.
@@ -167,7 +169,17 @@ def _execute_tool(
 ) -> Tuple[Dict[str, Any], str]:
     """Dispatch a tool call. Returns (result_dict, short_summary)."""
     if name == "search_documentation":
-        result = _do_search(args.get("query", ""), registry, trace)
+        query = args.get("query", "")
+        if registry:
+            return {
+                "query": query,
+                "chunks": [],
+                "message": (
+                    "Documentation was already retrieved for this question. "
+                    "Use the previous search results and answer now."
+                ),
+            }, "reused previous retrieval"
+        result = _do_search(query, registry, trace)
         return result, f"retrieved {len(result['chunks'])} chunks"
     if name == "calculator":
         result = tools.calculator(args.get("expression", ""))
@@ -310,11 +322,24 @@ def run_agent(
     total_output_tokens = 0
 
     for _ in range(settings.max_agent_steps):
+        # Once retrieval has returned sources, stop offering the same tool. The
+        # model still has the prior tool result in `messages` and can use other
+        # tools (for example, the calculator) before producing its answer.
+        active_tool_schemas = [
+            schema
+            for schema in tool_schemas
+            if not (
+                registry
+                and schema["function"]["name"] == "search_documentation"
+            )
+        ]
         gen = trace.generation(
             name="llm_decision", model=model_used, input=messages
         )
         try:
-            completion = llm.chat(messages, tools=tool_schemas, tool_choice="auto")
+            completion = llm.chat(
+                messages, tools=active_tool_schemas, tool_choice="auto"
+            )
         except llm.LLMNotConfigured:
             raise
         except Exception as exc:  # noqa: BLE001 - recover from tool_use_failed etc.
@@ -323,10 +348,22 @@ def run_agent(
             # instead of JSON tool calls.  Parse and execute directly — no second
             # LLM call needed, just inject the tool result and continue the loop.
             xml_name, xml_args = _parse_xml_tool_call(exc)
-            valid_tools = {s["function"]["name"] for s in tool_schemas}
+            valid_tools = {s["function"]["name"] for s in active_tool_schemas}
             if xml_name and xml_name in valid_tools:
-                result, summary = _execute_tool(xml_name, xml_args or {}, registry, trace)
-                steps.append(AgentStep(tool=xml_name, arguments=xml_args or {}, summary=summary))
+                already_retrieved = (
+                    xml_name == "search_documentation" and bool(registry)
+                )
+                result, summary = _execute_tool(
+                    xml_name, xml_args or {}, registry, trace
+                )
+                if not already_retrieved:
+                    steps.append(
+                        AgentStep(
+                            tool=xml_name,
+                            arguments=xml_args or {},
+                            summary=summary,
+                        )
+                    )
                 tc_id = f"call_{uuid.uuid4().hex[:8]}"
                 messages.append({
                     "role": "assistant",
@@ -367,12 +404,20 @@ def run_agent(
                     args = json.loads(tc.function.arguments or "{}")
                 except json.JSONDecodeError:
                     args = {}
+                already_retrieved = (
+                    tc.function.name == "search_documentation" and bool(registry)
+                )
                 result, summary = _execute_tool(
                     tc.function.name, args, registry, trace
                 )
-                steps.append(
-                    AgentStep(tool=tc.function.name, arguments=args, summary=summary)
-                )
+                if not already_retrieved:
+                    steps.append(
+                        AgentStep(
+                            tool=tc.function.name,
+                            arguments=args,
+                            summary=summary,
+                        )
+                    )
                 messages.append(
                     {
                         "role": "tool",
