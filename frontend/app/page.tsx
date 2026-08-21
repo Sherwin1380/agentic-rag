@@ -19,7 +19,6 @@ interface Turn extends ChatTurn {
 
 const EXAMPLES = [
   "What are the funds-availability rules for next-day items under Regulation CC?",
-  "When must a bank provide a Regulation Z adverse-action notice?",
   "What is the threshold for filing a Suspicious Activity Report?",
   "What disclosures does Regulation E require for electronic fund transfers?",
 ];
