@@ -148,6 +148,93 @@ class RetrievalGuardTests(unittest.TestCase):
         self.assertEqual(offered_tools[1], [])
         search.assert_called_once_with("electronic payments")
 
+    def test_agent_recovers_when_final_answer_is_only_private_markup(self):
+        tool_call = types.SimpleNamespace(
+            id="call-1",
+            function=types.SimpleNamespace(
+                name="search_documentation",
+                arguments='{"query": "Regulation Z adverse action"}',
+            ),
+        )
+        completions = [
+            types.SimpleNamespace(
+                usage=None,
+                choices=[
+                    types.SimpleNamespace(
+                        message=types.SimpleNamespace(content="", tool_calls=[tool_call])
+                    )
+                ],
+            ),
+            types.SimpleNamespace(
+                usage=None,
+                choices=[
+                    types.SimpleNamespace(
+                        message=types.SimpleNamespace(
+                            content=(
+                                "<think>I should search again.</think>"
+                                "<tool_call>search_documentation</tool_call>"
+                            ),
+                            tool_calls=None,
+                        )
+                    )
+                ],
+            ),
+            types.SimpleNamespace(
+                usage=None,
+                choices=[
+                    types.SimpleNamespace(
+                        message=types.SimpleNamespace(
+                            content="The retrieved text does not answer that question [1].",
+                            tool_calls=None,
+                        )
+                    )
+                ],
+            ),
+        ]
+        chunks = [
+            {
+                "id": "12CFR-1026::c0",
+                "text": "A retrieved Regulation Z passage.",
+                "metadata": {
+                    "title": "Regulation Z",
+                    "source": "12CFR-1026",
+                },
+                "dense_score": 0.8,
+                "sparse_score": None,
+            }
+        ]
+        settings = types.SimpleNamespace(
+            enable_web_search=False,
+            max_agent_steps=3,
+            groq_model="test-primary",
+            fallback_model="test-fallback",
+        )
+        called_models = []
+
+        def fake_chat(messages, tools=None, model=None, **kwargs):
+            called_models.append(model)
+            return completions.pop(0)
+
+        with (
+            patch.object(agent, "get_settings", return_value=settings),
+            patch.object(agent, "Trace", _Trace),
+            patch.object(agent.llm, "chat", side_effect=fake_chat),
+            patch.object(agent.retriever, "hybrid_search", return_value=chunks) as search,
+            patch.object(agent.llmops, "log_response"),
+            patch.object(agent.governance, "audit_log"),
+        ):
+            result = agent.run_agent("What is the Regulation Z rule?", [])
+
+        self.assertEqual(
+            result["answer"],
+            "The retrieved text does not answer that question [1].",
+        )
+        self.assertTrue(result["fallback_used"])
+        self.assertEqual(result["model_used"], "test-fallback")
+        self.assertEqual(called_models, [None, None, "test-fallback"])
+        self.assertEqual(len(result["steps"]), 1)
+        search.assert_called_once_with("Regulation Z adverse action")
+
 
 if __name__ == "__main__":
     unittest.main()

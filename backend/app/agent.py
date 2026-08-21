@@ -226,6 +226,21 @@ _XML_TOOL_RE = re.compile(
     r"<function=(?P<name>\w+)\s*(?P<args>\{.*?\})\s*</function>", re.DOTALL
 )
 
+_PRIVATE_BLOCK_RE = re.compile(
+    r"<(think|tool_call)\b[^>]*>.*?</\1>",
+    re.IGNORECASE | re.DOTALL,
+)
+
+
+def _sanitize_answer(text: str) -> str:
+    """Remove leaked reasoning/tool-control blocks from user-visible content."""
+    previous = text
+    while True:
+        cleaned = _PRIVATE_BLOCK_RE.sub("", previous)
+        if cleaned == previous:
+            return cleaned.strip()
+        previous = cleaned
+
 
 def _parse_xml_tool_call(exc: Exception) -> Tuple[Optional[str], Optional[Dict]]:
     """Some Groq-hosted models may output tool calls in XML format
@@ -286,7 +301,7 @@ def _recover_without_tools(
         )
     try:
         completion = llm.chat(messages, tools=None, model=model)
-        return completion.choices[0].message.content or ""
+        return _sanitize_answer(completion.choices[0].message.content or "")
     except Exception as exc:
         trace.span(name="recovery_error", input={"model": model, "error": str(exc)}).end(
             output=str(exc)
@@ -424,12 +439,27 @@ def run_agent(
                 )
             continue
 
-        answer = msg.content or ""
+        answer = _sanitize_answer(msg.content or "")
+        if not answer and registry:
+            _log.warning(
+                "Model %s returned only private reasoning/tool markup; using fallback",
+                model_used,
+            )
+            fallback_used = True
+            model_used = settings.fallback_model
+            answer = _recover_without_tools(
+                messages,
+                message,
+                registry,
+                steps,
+                trace,
+                model=settings.fallback_model,
+            )
         break
     else:
         gen = trace.generation(name="llm_final", model=model_used, input=messages)
         completion = llm.chat(messages, tools=None)
-        answer = completion.choices[0].message.content or ""
+        answer = _sanitize_answer(completion.choices[0].message.content or "")
         gen.end(output=answer)
         if hasattr(completion, "usage") and completion.usage:
             total_input_tokens += getattr(completion.usage, "prompt_tokens", 0) or 0

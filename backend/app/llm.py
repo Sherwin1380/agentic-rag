@@ -42,11 +42,20 @@ def chat(
     """Single chat completion. Returns the raw Groq message object."""
     settings = get_settings()
     client = _get_client()
+    selected_model = model or settings.groq_model
     kwargs: Dict[str, Any] = {
-        "model": model or settings.groq_model,
+        "model": selected_model,
         "messages": messages,
         "temperature": settings.llm_temperature if temperature is None else temperature,
     }
+    # Keep chain-of-thought out of user-visible message.content. Groq exposes
+    # different controls for GPT-OSS and Qwen reasoning models.
+    if selected_model.startswith("openai/gpt-oss-"):
+        kwargs["include_reasoning"] = False
+        kwargs["reasoning_effort"] = "low"
+    elif selected_model == "qwen/qwen3.6-27b":
+        kwargs["reasoning_format"] = "hidden"
+        kwargs["reasoning_effort"] = "none"
     if tools:
         kwargs["tools"] = tools
         kwargs["tool_choice"] = tool_choice
