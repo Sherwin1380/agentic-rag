@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import MarkdownContent from "./components/MarkdownContent";
 import {
   sendChat,
   getHealth,
@@ -143,7 +144,13 @@ export default function Home() {
                 ))}
               </div>
             )}
-            <div className="bubble">{t.content}</div>
+            <div className="bubble">
+              {t.role === "assistant" ? (
+                <MarkdownContent content={t.content} />
+              ) : (
+                t.content
+              )}
+            </div>
             {t.sources && t.sources.length > 0 && (
               <div className="sources">
                 <div className="title">Sources</div>
