@@ -1,4 +1,4 @@
-"""Agent tools: a safe calculator and a free web search.
+"""Agent tools: a safe calculator and a free metasearch.
 
 These are the non-retrieval tools the agent can choose to call. Retrieval
 itself is exposed as a tool in agent.py (search_documentation).
@@ -6,11 +6,14 @@ itself is exposed as a tool in agent.py (search_documentation).
 from __future__ import annotations
 
 import ast
+import logging
 import math
 import operator
 from typing import Any, Dict, List
 
 from .config import get_settings
+
+_log = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Calculator — safe arithmetic via AST whitelisting (no eval of arbitrary code)
@@ -66,7 +69,7 @@ def calculator(expression: str) -> Dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
-# Web search — DuckDuckGo, no API key required
+# Web search — DDGS metasearch, no API key required
 # ---------------------------------------------------------------------------
 
 def web_search(query: str, max_results: int = 4) -> Dict[str, Any]:
@@ -74,11 +77,16 @@ def web_search(query: str, max_results: int = 4) -> Dict[str, Any]:
     if not settings.enable_web_search:
         return {"query": query, "error": "web search is disabled"}
     try:
-        from duckduckgo_search import DDGS
+        from ddgs import DDGS
 
         results: List[Dict[str, str]] = []
-        with DDGS() as ddgs:
-            for r in ddgs.text(query, max_results=max_results):
+        with DDGS(timeout=10) as ddgs:
+            raw_results = ddgs.text(
+                query,
+                max_results=max_results,
+                backend="auto",
+            )
+            for r in raw_results or []:
                 results.append(
                     {
                         "title": r.get("title", ""),
@@ -86,6 +94,9 @@ def web_search(query: str, max_results: int = 4) -> Dict[str, Any]:
                         "url": r.get("href", ""),
                     }
                 )
+        if not results:
+            _log.warning("web search returned no results")
         return {"query": query, "results": results}
     except Exception as exc:  # noqa: BLE001
+        _log.warning("web search failed: %s", exc)
         return {"query": query, "error": f"web search failed: {exc}"}

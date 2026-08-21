@@ -3,7 +3,7 @@
 A tool-using loop over Groq's function-calling API. On each turn the model may:
   - call search_documentation  -> hybrid RAG over the banking regulations corpus
   - call calculator            -> safe arithmetic
-  - call web_search            -> DuckDuckGo, for things outside the corpus
+  - call web_search            -> DDGS metasearch, for things outside the corpus
   - or answer directly         -> for greetings / general knowledge
 
 This "decide whether to retrieve" behaviour is the difference between an agent
@@ -117,7 +117,7 @@ def _tool_schemas() -> List[Dict[str, Any]]:
                 "function": {
                     "name": "web_search",
                     "description": (
-                        "Search the public web (DuckDuckGo). Use ONLY for topics "
+                        "Search the public web (DDGS metasearch). Use ONLY for topics "
                         "outside the banking regulations corpus, e.g. current events."
                     ),
                     "parameters": {
@@ -179,7 +179,12 @@ def _execute_tool(
         return result, summary
     if name == "web_search":
         result = tools.web_search(args.get("query", ""))
+        if result.get("error"):
+            error = str(result["error"])
+            return result, f"web search error: {error[:160]}"
         n = len(result.get("results", []))
+        if n == 0:
+            return result, "web search returned no results"
         return result, f"web: {n} results"
     return {"error": f"unknown tool {name}"}, "unknown tool"
 

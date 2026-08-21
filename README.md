@@ -240,7 +240,7 @@ python scripts/evaluate_experiment_chroma.py
 | `EMBEDDING_MODEL` | `intfloat/e5-small-v2` | Sentence transformer model |
 | `EMBEDDING_QUERY_PREFIX` | `query: ` | E5 query prefix |
 | `EMBEDDING_PASSAGE_PREFIX` | `passage: ` | E5 passage prefix |
-| `ENABLE_WEB_SEARCH` | `true` | Enable DuckDuckGo fallback tool |
+| `ENABLE_WEB_SEARCH` | `true` | Enable the DDGS metasearch fallback tool |
 | `WAREHOUSE_BACKEND` | `sqlite` | `sqlite` or `snowflake` |
 | `SNOWFLAKE_ACCOUNT` | — | Required when `WAREHOUSE_BACKEND=snowflake` |
 | `SNOWFLAKE_USER` | — | Required when `WAREHOUSE_BACKEND=snowflake` |
@@ -304,7 +304,7 @@ Agent loop (agent.py)
     │               └── RRF fusion
     │
     ├── Tool: calculator (safe AST eval)
-    ├── Tool: web_search (DuckDuckGo)
+    ├── Tool: web_search (DDGS metasearch)
     │
     ├── Fallback model routing on tool_use_failed
     │
