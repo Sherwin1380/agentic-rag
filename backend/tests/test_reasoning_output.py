@@ -41,6 +41,18 @@ class ReasoningOutputTests(unittest.TestCase):
 
         self.assertEqual(agent._sanitize_answer(raw), "")
 
+    def test_removes_unclosed_private_block_after_visible_answer(self):
+        raw = "The supported answer [1].\n<think>I should search again"
+
+        self.assertEqual(agent._sanitize_answer(raw), "The supported answer [1].")
+
+    def test_removes_escaped_and_encoded_private_blocks(self):
+        escaped = r"\<think>private\</think>Visible answer."
+        encoded = "&lt;tool_call&gt;search again&lt;/tool_call&gt;Visible answer."
+
+        self.assertEqual(agent._sanitize_answer(escaped), "Visible answer.")
+        self.assertEqual(agent._sanitize_answer(encoded), "Visible answer.")
+
     def test_gpt_oss_excludes_reasoning(self):
         client = _Client()
         settings = types.SimpleNamespace(

@@ -227,17 +227,38 @@ _XML_TOOL_RE = re.compile(
 )
 
 _PRIVATE_BLOCK_RE = re.compile(
-    r"<(think|tool_call)\b[^>]*>.*?</\1>",
+    r"\\?<\s*(think|tool_call|function)\b[^>]*>.*?\\?<\s*/\s*\1\s*>",
     re.IGNORECASE | re.DOTALL,
+)
+_ENCODED_PRIVATE_BLOCK_RE = re.compile(
+    r"&lt;\s*(think|tool_call|function)\b.*?&gt;.*?"
+    r"&lt;\s*/\s*\1\s*&gt;",
+    re.IGNORECASE | re.DOTALL,
+)
+_UNCLOSED_PRIVATE_BLOCK_RE = re.compile(
+    r"(?:\\?<|&lt;)\s*(?:think|tool_call|function)\b.*\Z",
+    re.IGNORECASE | re.DOTALL,
+)
+_PRIVATE_CLOSING_TAG_RE = re.compile(
+    r"(?:\\?<|&lt;)\s*/\s*(?:think|tool_call|function)\s*(?:>|&gt;)",
+    re.IGNORECASE,
+)
+
+_SAFE_RECOVERY_FAILURE = (
+    "I couldn't produce a supported answer from the retrieved sources. "
+    "Please try rephrasing the question."
 )
 
 
 def _sanitize_answer(text: str) -> str:
-    """Remove leaked reasoning/tool-control blocks from user-visible content."""
+    """Remove complete, escaped, or truncated private model-control blocks."""
     previous = text
     while True:
         cleaned = _PRIVATE_BLOCK_RE.sub("", previous)
+        cleaned = _ENCODED_PRIVATE_BLOCK_RE.sub("", cleaned)
         if cleaned == previous:
+            cleaned = _UNCLOSED_PRIVATE_BLOCK_RE.sub("", cleaned)
+            cleaned = _PRIVATE_CLOSING_TAG_RE.sub("", cleaned)
             return cleaned.strip()
         previous = cleaned
 
@@ -278,6 +299,7 @@ def _recover_without_tools(
     so a smaller, more reliable model handles recovery instead of retrying the
     same primary model that just failed.
     """
+    recovery_messages = list(messages)
     if not registry:
         payload = _do_search(user_message, registry, trace)
         steps.append(
@@ -290,7 +312,7 @@ def _recover_without_tools(
         context = "\n\n".join(
             f"{c['citation']} {c['title']}\n{c['text']}" for c in payload["chunks"]
         )
-        messages.append(
+        recovery_messages.append(
             {
                 "role": "user",
                 "content": (
@@ -299,9 +321,20 @@ def _recover_without_tools(
                 ),
             }
         )
+    recovery_messages.append(
+        {
+            "role": "user",
+            "content": (
+                "Write the final user-facing answer now using the retrieved "
+                "documentation. Do not reveal reasoning, analysis, XML tags, or "
+                "tool calls. If the sources are insufficient, say so plainly."
+            ),
+        }
+    )
     try:
-        completion = llm.chat(messages, tools=None, model=model)
-        return _sanitize_answer(completion.choices[0].message.content or "")
+        completion = llm.chat(recovery_messages, tools=None, model=model)
+        answer = _sanitize_answer(completion.choices[0].message.content or "")
+        return answer or _SAFE_RECOVERY_FAILURE
     except Exception as exc:
         trace.span(name="recovery_error", input={"model": model, "error": str(exc)}).end(
             output=str(exc)
