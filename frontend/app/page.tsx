@@ -152,29 +152,33 @@ export default function Home() {
               )}
             </div>
             {t.sources && t.sources.length > 0 && (
-              <div className="sources">
-                <div className="title">Sources</div>
-                {t.sources.map((s) => (
-                  <div className="source" key={s.n}>
-                    <div className="src-head">
-                      {s.url ? (
-                        <a href={s.url} target="_blank" rel="noreferrer">
-                          [{s.n}] {s.title}
-                        </a>
-                      ) : (
-                        <span className="doc">
-                          [{s.n}] {s.title}
+              <details className="sources">
+                <summary>
+                  Sources <span className="source-count">{t.sources.length}</span>
+                </summary>
+                <div className="sources-list">
+                  {t.sources.map((s) => (
+                    <div className="source" key={s.n}>
+                      <div className="src-head">
+                        {s.url ? (
+                          <a href={s.url} target="_blank" rel="noreferrer">
+                            [{s.n}] {s.title}
+                          </a>
+                        ) : (
+                          <span className="doc">
+                            [{s.n}] {s.title}
+                          </span>
+                        )}
+                        <span className="scores">
+                          {s.dense_score != null && `dense ${s.dense_score}`}
+                          {s.sparse_score != null && ` · bm25 ${s.sparse_score}`}
                         </span>
-                      )}
-                      <span className="scores">
-                        {s.dense_score != null && `dense ${s.dense_score}`}
-                        {s.sparse_score != null && ` · bm25 ${s.sparse_score}`}
-                      </span>
+                      </div>
+                      <div className="snippet">{s.snippet}</div>
                     </div>
-                    <div className="snippet">{s.snippet}</div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              </details>
             )}
           </div>
         ))}

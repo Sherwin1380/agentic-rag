@@ -228,7 +228,7 @@ _XML_TOOL_RE = re.compile(
 
 
 def _parse_xml_tool_call(exc: Exception) -> Tuple[Optional[str], Optional[Dict]]:
-    """Groq's llama-3.3-70b-versatile sometimes outputs tool calls in XML format
+    """Some Groq-hosted models may output tool calls in XML format
     (<function=NAME{...}</function>) instead of JSON, triggering a 400
     tool_use_failed.  The intent is correct — extract name + args so the caller
     can execute the tool without a second LLM round-trip.
@@ -340,9 +340,8 @@ def run_agent(
             raise
         except Exception as exc:  # noqa: BLE001 - recover from tool_use_failed etc.
             _log.warning("LLM decision call failed (%s): %s", model_used, exc)
-            # llama-3.3-70b-versatile sometimes outputs <function=NAME{...}</function>
-            # instead of JSON tool calls.  Parse and execute directly — no second
-            # LLM call needed, just inject the tool result and continue the loop.
+            # Some models output <function=NAME{...}</function> instead of JSON
+            # tool calls. Parse and execute directly without another LLM call.
             xml_name, xml_args = _parse_xml_tool_call(exc)
             valid_tools = {s["function"]["name"] for s in active_tool_schemas}
             if xml_name and xml_name in valid_tools:

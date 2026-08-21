@@ -73,8 +73,8 @@ Hosted:
 
 | Layer | Choice |
 |-------|--------|
-| LLM (primary) | Groq, `llama-3.1-8b-instant` |
-| LLM (fallback) | Groq, `llama-3.1-8b-instant` |
+| LLM (primary) | Groq, `openai/gpt-oss-20b` |
+| LLM (fallback) | Groq, `qwen/qwen3.6-27b` (preview) |
 | Embeddings | `intfloat/e5-small-v2` |
 | Vector DB | Chroma, persisted under `backend/storage/experiment_chroma` |
 | Sparse retrieval | `rank-bm25` |
@@ -218,7 +218,7 @@ python scripts/evaluate_experiment_chroma.py
   "sources": [{ "n": 1, "title": "...", "source": "...", "snippet": "..." }],
   "steps": [{ "tool": "search_documentation", "arguments": {}, "summary": "..." }],
   "trace_id": "optional-langfuse-id",
-  "model_used": "llama-3.1-8b-instant",
+  "model_used": "openai/gpt-oss-20b",
   "fallback_used": false,
   "latency_ms": 1240.5,
   "grounding_score": 0.857,
@@ -233,8 +233,8 @@ python scripts/evaluate_experiment_chroma.py
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `GROQ_API_KEY` | *(required)* | Groq API key |
-| `GROQ_MODEL` | `llama-3.1-8b-instant` | Primary LLM |
-| `FALLBACK_MODEL` | `llama-3.1-8b-instant` | Fallback LLM on tool_use_failed |
+| `GROQ_MODEL` | `openai/gpt-oss-20b` | Primary LLM; Groq's replacement for Llama 3.1 8B |
+| `FALLBACK_MODEL` | `qwen/qwen3.6-27b` | Free-tier fallback from another model family (preview) |
 | `CHROMA_PATH` | `backend/storage/experiment_chroma` | ChromaDB path |
 | `COLLECTION_NAME` | `banking_exp_full_e5_small_v2_1500_255` | Chroma collection |
 | `EMBEDDING_MODEL` | `intfloat/e5-small-v2` | Sentence transformer model |

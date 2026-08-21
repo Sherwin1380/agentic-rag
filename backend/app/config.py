@@ -29,16 +29,13 @@ class Settings(BaseSettings):
 
     # --- LLM (Groq) ---
     groq_api_key: str = ""
-    # Model choice is constrained by Groq tool-calling behaviour + free-tier TPM:
-    #  - llama-3.3-70b-versatile emits malformed XML tool calls (<function=...>)
-    #    → 400 tool_use_failed on EVERY retrieval. Unusable for tool calling.
-    #  - gpt-oss-120b/20b are reasoning models that over-call tools (4 searches
-    #    per question) and even call tools on the final tools=None answer turn,
-    #    bloating context past the free-tier 6000 TPM limit.
-    #  - llama-3.1-8b-instant emits clean JSON tool calls, searches once, makes
-    #    correct retrieve-vs-answer decisions, and stays within free-tier TPM.
-    groq_model: str = "llama-3.1-8b-instant"
-    fallback_model: str = "llama-3.1-8b-instant"  # recovery path runs with tools disabled
+    # Groq's supported replacement for the deprecated Llama 3.1 8B model. The
+    # agent limits retrieval to one call and disables tools for final generation
+    # because reasoning models otherwise tend to over-call tools.
+    groq_model: str = "openai/gpt-oss-20b"
+    # Independent model family for tools-disabled recovery. Qwen currently has
+    # free-tier access; keep it configurable because it is a preview model.
+    fallback_model: str = "qwen/qwen3.6-27b"
     llm_temperature: float = 0.1
     max_agent_steps: int = 3  # cap tool loop so context stays under free-tier TPM
 

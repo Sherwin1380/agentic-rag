@@ -15,9 +15,9 @@ services:
       - key: GROQ_API_KEY
         sync: false          # set this secret in the dashboard
       - key: GROQ_MODEL
-        value: llama-3.1-8b-instant
+        value: openai/gpt-oss-20b
       - key: FALLBACK_MODEL
-        value: llama-3.1-8b-instant
+        value: qwen/qwen3.6-27b
       - key: CHROMA_PATH
         value: /app/storage/experiment_chroma
       - key: COLLECTION_NAME

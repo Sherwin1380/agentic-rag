@@ -39,6 +39,9 @@ def get_prompt(version: str = PROMPT_VERSION) -> Optional[str]:
 # ---------------------------------------------------------------------------
 
 _COST_PER_MILLION: Dict[str, Dict[str, float]] = {
+    "openai/gpt-oss-20b":      {"input": 0.075, "output": 0.30},
+    "openai/gpt-oss-120b":     {"input": 0.15, "output": 0.60},
+    "qwen/qwen3.6-27b":        {"input": 0.60, "output": 3.00},
     "llama-3.3-70b-versatile": {"input": 0.59, "output": 0.79},
     "llama3-8b-8192":          {"input": 0.05, "output": 0.08},
     "gemma2-9b-it":            {"input": 0.20, "output": 0.20},

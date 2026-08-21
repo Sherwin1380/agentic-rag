@@ -1,4 +1,4 @@
-"""Groq chat-completions wrapper (Llama 3.3 70B by default).
+"""Thin Groq chat-completions wrapper for the configured models.
 
 Kept deliberately thin: the agent loop in agent.py owns the tool-calling logic;
 this module only handles the raw Groq call and surfaces a clean error if the
