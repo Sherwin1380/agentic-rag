@@ -26,6 +26,7 @@ Governance:
 from __future__ import annotations
 
 import json
+import logging
 import re
 import time
 import uuid
@@ -35,6 +36,8 @@ from . import governance, llm, llmops, retriever, tools
 from .config import get_settings
 from .models import AgentStep, ChatMessage, Source
 from .observability import Trace
+
+_log = logging.getLogger(__name__)
 
 SYSTEM_PROMPT = """You are a precise assistant for U.S. banking regulations \
 (Title 12 of the Code of Federal Regulations — Banks and Banking), covering the \
@@ -288,8 +291,7 @@ def _recover_without_tools(
         trace.span(name="recovery_error", input={"model": model, "error": str(exc)}).end(
             output=str(exc)
         )
-        import logging as _log
-        _log.getLogger(__name__).error("Recovery LLM call failed: %s", exc)
+        _log.error("Recovery LLM call failed: %s", exc)
         return "Sorry — I hit an error generating a response. Please try again."
 
 
@@ -322,17 +324,11 @@ def run_agent(
     total_output_tokens = 0
 
     for _ in range(settings.max_agent_steps):
-        # Once retrieval has returned sources, stop offering the same tool. The
-        # model still has the prior tool result in `messages` and can use other
-        # tools (for example, the calculator) before producing its answer.
-        active_tool_schemas = [
-            schema
-            for schema in tool_schemas
-            if not (
-                registry
-                and schema["function"]["name"] == "search_documentation"
-            )
-        ]
+        # Once retrieval has returned sources, switch to a tools-disabled final
+        # answer turn. Some reasoning models keep attempting tool calls after
+        # they have the required context, which can trigger provider-side
+        # tool_use_failed errors instead of producing the grounded answer.
+        active_tool_schemas = [] if registry else tool_schemas
         gen = trace.generation(
             name="llm_decision", model=model_used, input=messages
         )
@@ -343,13 +339,14 @@ def run_agent(
         except llm.LLMNotConfigured:
             raise
         except Exception as exc:  # noqa: BLE001 - recover from tool_use_failed etc.
-            gen.end(output=f"[xml-tool-parse: {exc}]")
+            _log.warning("LLM decision call failed (%s): %s", model_used, exc)
             # llama-3.3-70b-versatile sometimes outputs <function=NAME{...}</function>
             # instead of JSON tool calls.  Parse and execute directly — no second
             # LLM call needed, just inject the tool result and continue the loop.
             xml_name, xml_args = _parse_xml_tool_call(exc)
             valid_tools = {s["function"]["name"] for s in active_tool_schemas}
             if xml_name and xml_name in valid_tools:
+                gen.end(output=f"[xml-tool-recovered: {exc}]")
                 already_retrieved = (
                     xml_name == "search_documentation" and bool(registry)
                 )

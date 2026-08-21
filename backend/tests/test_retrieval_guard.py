@@ -74,7 +74,7 @@ class RetrievalGuardTests(unittest.TestCase):
         self.assertIn("answer now", second["message"])
         search.assert_called_once_with("electronic payments")
 
-    def test_agent_stops_offering_search_after_retrieval(self):
+    def test_agent_disables_tools_after_retrieval(self):
         tool_call = types.SimpleNamespace(
             id="call-1",
             function=types.SimpleNamespace(
@@ -145,7 +145,7 @@ class RetrievalGuardTests(unittest.TestCase):
         self.assertEqual(len(result["steps"]), 1)
         self.assertEqual(result["steps"][0].tool, "search_documentation")
         self.assertIn("search_documentation", offered_tools[0])
-        self.assertNotIn("search_documentation", offered_tools[1])
+        self.assertEqual(offered_tools[1], [])
         search.assert_called_once_with("electronic payments")
 
 
