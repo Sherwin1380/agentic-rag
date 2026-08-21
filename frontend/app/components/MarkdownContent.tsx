@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { sanitizeAssistantContent } from "../lib/sanitize";
 
 interface MarkdownContentProps {
   content: string;
@@ -63,7 +64,7 @@ function startsBlock(lines: string[], index: number): boolean {
 }
 
 export default function MarkdownContent({ content }: MarkdownContentProps) {
-  const lines = content.replace(/\r\n/g, "\n").split("\n");
+  const lines = sanitizeAssistantContent(content).replace(/\r\n/g, "\n").split("\n");
   const blocks: ReactNode[] = [];
   let index = 0;
   let blockIndex = 0;

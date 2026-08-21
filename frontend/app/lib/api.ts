@@ -1,5 +1,7 @@
 // Thin client for the FastAPI backend.
 
+import { sanitizeAssistantContent } from "./sanitize";
+
 export const API_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -44,7 +46,11 @@ export async function sendChat(
     const detail = await res.json().catch(() => ({}));
     throw new Error(detail.detail || `Request failed (${res.status})`);
   }
-  return res.json();
+  const payload = (await res.json()) as ChatResponse;
+  return {
+    ...payload,
+    answer: sanitizeAssistantContent(payload.answer),
+  };
 }
 
 export interface Health {
